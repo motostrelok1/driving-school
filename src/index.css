@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0f172a;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #3b82f6;
+  --color-secondary-foreground: #ffffff;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-border: #e2e8f0;
+  --color-ring: #3b82f6;
+  --color-danger: #ef4444;
+  --color-danger-foreground: #ffffff;
+  --color-success: #22c55e;
+  --color-success-foreground: #ffffff;
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-white text-primary font-sans antialiased;
+  }
+
+  #root {
+    @apply min-h-screen flex flex-col;
+  }
+}
+
+
+@layer utilities {
+  @keyframes notification-bell {
+    0%, 100% {
+      transform: rotate(0deg) scale(1);
+    }
+
+    15% {
+      transform: rotate(-12deg) scale(1.08);
+    }
+
+    30% {
+      transform: rotate(12deg) scale(1.08);
+    }
+
+    45% {
+      transform: rotate(-8deg) scale(1.05);
+    }
+
+    60% {
+      transform: rotate(8deg) scale(1.05);
+    }
+  }
+
+  .animate-notification-bell {
+    animation: notification-bell 1.1s ease-in-out infinite;
+    transform-origin: 50% 10%;
+  }
+}
