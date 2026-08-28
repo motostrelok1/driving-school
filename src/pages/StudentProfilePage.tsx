@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { BookOpen, Car, ChevronDown, UserRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/hooks/useAuth'
@@ -86,48 +87,58 @@ export function StudentProfilePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
-              <BookOpen className="h-6 w-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold text-primary">Теория</p>
-                <span className="text-sm font-semibold text-primary">
-                  {theoryProgress}%
-                </span>
+      <Link
+        to="/student/theory"
+        className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
+      >
+        <Card className="transition hover:border-secondary/50 hover:shadow-md">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+                <BookOpen className="h-6 w-6" />
               </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-secondary"
-                  style={{ width: `${theoryProgress}%` }}
-                />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-primary">Теория</p>
+                  <span className="text-sm font-semibold text-primary">
+                    {theoryProgress}%
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-secondary"
+                    style={{ width: `${theoryProgress}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Пройдено {theoryItemsDone} из {TOTAL_THEORY_ITEMS}. Осталось пройти: {theoryItemsLeft}
+                </p>
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Пройдено {theoryItemsDone} из {TOTAL_THEORY_ITEMS}. Осталось пройти: {theoryItemsLeft}
-              </p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Link>
 
-      <Card>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
-              <Car className="h-6 w-6" />
+      <Link
+        to="/student/practice"
+        className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
+      >
+        <Card className="transition hover:border-secondary/50 hover:shadow-md">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+                <Car className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-primary">Вождение</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Осталось часов: {drivingHoursLeft.toFixed(1)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-primary">Вождение</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Осталось часов: {drivingHoursLeft.toFixed(1)}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Link>
 
       <Card>
         <CardContent>
