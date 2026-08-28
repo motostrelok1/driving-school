@@ -289,7 +289,17 @@ export function usePddArticle(topicId?: string) {
           .maybeSingle()
 
         if (error) throw error
-        if (data) return data as PddArticle
+        if (data) {
+          const article = data as PddArticle
+          const blocks = article.content?.blocks ?? []
+          const hasOnlyPlaceholder = blocks.length === 1 &&
+            blocks[0]?.type === 'paragraph' &&
+            blocks[0]?.text?.includes('Материал раздела будет добавлен')
+
+          if (blocks.length > 0 && !hasOnlyPlaceholder) {
+            return article
+          }
+        }
       } catch (error) {
         console.warn('Не удалось загрузить раздел ПДД из базы, беру локальный материал.', error)
       }
