@@ -11,6 +11,7 @@ interface LessonListProps {
   title?: string
   showActions?: boolean
   onStatusChange?: (id: string, status: LessonStatus) => void
+  emptyText?: string
 }
 
 const statusLabels: Record<LessonStatus, string> = {
@@ -35,6 +36,7 @@ export function LessonList({
   title = 'Расписание',
   showActions,
   onStatusChange,
+  emptyText = 'Занятий пока нет.',
 }: LessonListProps) {
   if (lessons.length === 0) {
     return (
@@ -43,7 +45,7 @@ export function LessonList({
           <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Занятий пока нет.</p>
+          <p className="text-muted-foreground">{emptyText}</p>
         </CardContent>
       </Card>
     )

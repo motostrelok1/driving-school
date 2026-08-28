@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { Lesson, LessonWithDetails, LessonStatus } from '@/types'
+import type { DrivingSlot, Lesson, LessonWithDetails, LessonStatus } from '@/types'
 
 export function useMyLessons() {
   return useQuery({
@@ -105,3 +105,115 @@ export function useUpdateLessonStatus() {
       mutation.mutate({ id, updates: { status } }),
   }
 }
+
+
+export function useDrivingSlots() {
+  return useQuery({
+    queryKey: ['driving-slots'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('driving_slots')
+        .select('*, instructor:profiles!driving_slots_instructor_id_fkey(full_name), student:profiles!driving_slots_student_id_fkey(full_name)')
+        .order('start_at', { ascending: true })
+
+      if (error) throw error
+      return (data ?? []) as DrivingSlot[]
+    },
+  })
+}
+
+export function useCreateDrivingSlot() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (slot: Omit<DrivingSlot, 'id' | 'created_at' | 'updated_at' | 'instructor' | 'student'>) => {
+      const { data, error } = await supabase
+        .from('driving_slots')
+        .upsert(slot, { onConflict: 'instructor_id,start_at' })
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
+    },
+  })
+}
+
+
+
+export function useUpdateDrivingSlot() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string
+      updates: Partial<DrivingSlot>
+    }) => {
+      const { data, error } = await supabase
+        .from('driving_slots')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
+    },
+  })
+}
+
+export function useDeleteDrivingSlot() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('driving_slots')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return id
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
+    },
+  })
+}
+
+
+
+export function useCancelMyFutureDrivingSlots() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (instructorId: string) => {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData.user) throw new Error('Not authenticated')
+
+      const { error } = await supabase
+        .from('driving_slots')
+        .update({ student_id: null, status: 'open' })
+        .eq('student_id', userData.user.id)
+        .eq('instructor_id', instructorId)
+        .eq('status', 'booked')
+        .gte('start_at', new Date().toISOString())
+
+      if (error) throw error
+      return instructorId
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
+    },
+  })
+}
+

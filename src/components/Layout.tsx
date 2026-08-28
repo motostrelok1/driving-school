@@ -9,6 +9,10 @@ import {
   LogOut,
   Menu,
   X,
+  User,
+  Car,
+  BookOpen,
+  CreditCard,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
@@ -23,9 +27,27 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    label: 'Моё расписание',
-    href: '/student/schedule',
-    icon: Calendar,
+    label: 'Профиль',
+    href: '/student/profile',
+    icon: User,
+    roles: ['student'],
+  },
+  {
+    label: 'Вождение',
+    href: '/student/practice',
+    icon: Car,
+    roles: ['student'],
+  },
+  {
+    label: 'Теория',
+    href: '/student/theory',
+    icon: BookOpen,
+    roles: ['student'],
+  },
+  {
+    label: 'Расчеты',
+    href: '/student/payment',
+    icon: CreditCard,
     roles: ['student'],
   },
   {
@@ -56,6 +78,12 @@ const navItems: NavItem[] = [
     label: 'Пользователи',
     href: '/admin/users',
     icon: Users,
+    roles: ['admin'],
+  },
+  {
+    label: 'ПДД',
+    href: '/admin/pdd',
+    icon: BookOpen,
     roles: ['admin'],
   },
 ]

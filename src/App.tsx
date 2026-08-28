@@ -13,12 +13,77 @@ const LoginPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('@/pages/RegisterPage').then((module) => ({ default: module.RegisterPage }))
 )
+const ResetPasswordPage = lazy(() =>
+  import('@/pages/ResetPasswordPage').then((module) => ({
+    default: module.ResetPasswordPage,
+  }))
+)
 const SchedulePage = lazy(() =>
   import('@/pages/SchedulePage').then((module) => ({ default: module.SchedulePage }))
 )
 const StudentSchedulePage = lazy(() =>
   import('@/pages/StudentSchedulePage').then((module) => ({
     default: module.StudentSchedulePage,
+  }))
+)
+const StudentProfilePage = lazy(() =>
+  import('@/pages/StudentProfilePage').then((module) => ({
+    default: module.StudentProfilePage,
+  }))
+)
+const StudentPracticePage = lazy(() =>
+  import('@/pages/StudentPracticePage').then((module) => ({
+    default: module.StudentPracticePage,
+  }))
+)
+const StudentTheoryPage = lazy(() =>
+  import('@/pages/StudentTheoryPage').then((module) => ({
+    default: module.StudentTheoryPage,
+  }))
+)
+const StudentTheoryTestingPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentTheoryTestingPage,
+  }))
+)
+const StudentTheoryCoursePage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentTheoryCoursePage,
+  }))
+)
+const StudentPddTopicPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentPddTopicPage,
+  }))
+)
+const StudentPddPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentPddPage,
+  }))
+)
+const StudentTheoryTicketsPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentTheoryTicketsPage,
+  }))
+)
+const StudentTheoryTopicsPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentTheoryTopicsPage,
+  }))
+)
+const StudentTheoryMarathonPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentTheoryMarathonPage,
+  }))
+)
+const StudentTheoryExamPage = lazy(() =>
+  import('@/pages/StudentTheorySectionPage').then((module) => ({
+    default: module.StudentTheoryExamPage,
+  }))
+)
+const StudentPaymentPage = lazy(() =>
+  import('@/pages/StudentPaymentPage').then((module) => ({
+    default: module.StudentPaymentPage,
   }))
 )
 const InstructorStudentsPage = lazy(() =>
@@ -39,6 +104,11 @@ const AdminUsersPage = lazy(() =>
 const AdminSchedulePage = lazy(() =>
   import('@/pages/AdminSchedulePage').then((module) => ({
     default: module.AdminSchedulePage,
+  }))
+)
+const AdminPddPage = lazy(() =>
+  import('@/pages/AdminPddPage').then((module) => ({
+    default: module.AdminPddPage,
   }))
 )
 const NotFoundPage = lazy(() =>
@@ -74,7 +144,7 @@ function HomeRedirect() {
     } else if (role === 'instructor') {
       navigate('/instructor/schedule', { replace: true })
     } else {
-      navigate('/student/schedule', { replace: true })
+      navigate('/student/profile', { replace: true })
     }
   }, [role, isLoading, navigate])
 
@@ -94,6 +164,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             <Route
               path="/"
@@ -112,6 +183,126 @@ function App() {
                 <ProtectedRoute allowedRoles={['student']}>
                   <Layout>
                     <StudentSchedulePage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/profile"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentProfilePage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/practice"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentPracticePage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/testing"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryTestingPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/course"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryCoursePage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/course/pdd/:topicId"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentPddTopicPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/course/pdd"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentPddPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/training/tickets"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryTicketsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/training/topics"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryTopicsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/training/marathon"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryMarathonPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/theory/exam"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentTheoryExamPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/payment"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout>
+                    <StudentPaymentPage />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -164,6 +355,16 @@ function App() {
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Layout>
                     <AdminSchedulePage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/pdd"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Layout>
+                    <AdminPddPage />
                   </Layout>
                 </ProtectedRoute>
               }

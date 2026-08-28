@@ -1,0 +1,617 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Планирование MVP Driving School PWA</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #20252b;
+      --muted: #68717d;
+      --line: #dfe3e8;
+      --blue: #2563eb;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #b91c1c;
+      --violet: #7c3aed;
+      --slate: #334155;
+      --code: #0f172a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      padding: 22px 28px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+    h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: 0; }
+    header p { margin: 0; color: var(--muted); }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .tab-button {
+      appearance: none;
+      border: 1px solid transparent;
+      border-bottom: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 10px 14px;
+      border-radius: 8px 8px 0 0;
+      font: inherit;
+      font-weight: 700;
+    }
+    .tab-button[aria-selected="true"] {
+      background: var(--bg);
+      border-color: var(--line);
+      color: var(--blue);
+      margin-bottom: -1px;
+    }
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 20px;
+    }
+    nav {
+      align-self: start;
+      position: sticky;
+      top: 126px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    nav a {
+      display: block;
+      color: var(--slate);
+      text-decoration: none;
+      padding: 9px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    nav a:hover { background: #eef2ff; color: var(--blue); }
+    section, .viewer-pane {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+    h2 { margin: 0 0 14px; font-size: 21px; }
+    h3 { margin: 18px 0 8px; font-size: 16px; }
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 6px 0; }
+    code {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 5px;
+      padding: 2px 5px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 0.92em;
+    }
+    pre {
+      overflow: auto;
+      background: var(--code);
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fafc; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .planned { background: #e0f2fe; color: #075985; }
+    .progress { background: #ede9fe; color: #5b21b6; }
+    .partial { background: #fef3c7; color: #92400e; }
+    .done { background: #dcfce7; color: #166534; }
+    .blocked { background: #fee2e2; color: #991b1b; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      min-height: 100px;
+    }
+    .step strong { display: block; color: var(--blue); margin-bottom: 6px; }
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 10px 12px;
+      border-radius: 6px;
+      color: #1e3a8a;
+    }
+    .viewer-grid {
+      display: grid;
+      grid-template-rows: minmax(280px, 1fr) minmax(280px, 1fr);
+      gap: 18px;
+    }
+    .viewer-pane {
+      margin-bottom: 0;
+      min-height: 280px;
+      max-height: 52vh;
+      overflow: auto;
+    }
+    .md-frame {
+      width: 100%;
+      height: calc(52vh - 86px);
+      min-height: 210px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .viewer-pane header {
+      position: static;
+      border: none;
+      padding: 0 0 12px;
+      background: transparent;
+    }
+    .viewer-pane h2 { margin-bottom: 2px; }
+    .viewer-path { margin: 0; color: var(--muted); font-size: 13px; }
+    .markdown-table {
+      overflow: auto;
+    }
+    .roadmap-list h3 {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+    .roadmap-list h3:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .checkline {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin: 6px 0;
+    }
+    .checkline span:first-child {
+      font-weight: 700;
+      color: var(--blue);
+      min-width: 22px;
+    }
+    @media (max-width: 900px) {
+      main { padding: 14px; }
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; }
+      .grid, .flow { grid-template-columns: 1fr; }
+      header { position: static; }
+    }    .md-view {
+      padding: 2px 0 8px;
+    }
+    .md-view h1 {
+      margin: 0 0 10px;
+      font-size: 22px;
+    }
+    .md-view h2 {
+      margin: 18px 0 8px;
+      font-size: 18px;
+    }
+    .md-view h3 {
+      margin: 14px 0 8px;
+      font-size: 15px;
+    }
+    .md-view p {
+      margin: 8px 0;
+      color: var(--slate);
+    }
+    .md-view .todo-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 5px 0;
+    }
+    .md-view .todo-mark {
+      min-width: 22px;
+      font-weight: 800;
+      color: var(--blue);
+    }
+    .md-view .bullet {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 4px 0;
+    }
+    .md-view .bullet::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      margin-top: 9px;
+      border-radius: 999px;
+      background: var(--blue);
+      flex: 0 0 auto;
+    }
+    .loading, .error-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #f8fafc;
+      color: var(--muted);
+    }
+    .error-box {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Планирование MVP Driving School PWA</h1>
+    <p>Как выбрать маленькую задачу для ИИ, какие файлы дать, куда он пишет результат и как проверить выполнение.</p>
+    <div class="tabs" role="tablist" aria-label="Разделы панели">
+      <button class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="tab-tasks" id="tab-button-tasks">Просмотр задач что сделано</button>
+      <button class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-algorithm" id="tab-button-algorithm">Алгоритм действий</button>
+      <button class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="tab-ai" id="tab-button-ai">ИИ-инструкции</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tab-panel" id="tab-algorithm" role="tabpanel" aria-labelledby="tab-button-algorithm">
+      <div class="layout">
+        <nav aria-label="Навигация по алгоритму">
+          <a href="#algorithm">Алгоритм выбора</a>
+          <a href="#mvp">MVP сейчас</a>
+          <a href="#task-types">Типы задач</a>
+          <a href="#files">Главные файлы</a>
+        </nav>
+
+        <div>
+          <section id="algorithm">
+            <h2>Алгоритм выбора задачи</h2>
+            <div class="flow">
+              <div class="step"><strong>1</strong>Открыть <code>status/modules.md</code> и найти модуль со статусом <code>частично</code> или <code>запланировано</code>.</div>
+              <div class="step"><strong>2</strong>Открыть <code>status/roadmap.md</code> и выбрать ближайший незавершенный этап.</div>
+              <div class="step"><strong>3</strong>Открыть <code>tasks/backlog.md</code> и взять первую задачу из нужного раздела.</div>
+              <div class="step"><strong>4</strong>Дать ИИ конкретный task-файл, например <code>tasks/audit/auth.md</code>.</div>
+              <div class="step"><strong>5</strong>Проверить обновленный task-файл и отчет в <code>tasks/reports/</code>.</div>
+              <div class="step"><strong>6</strong>Вернуться в backlog и выбрать следующую маленькую задачу.</div>
+            </div>
+            <p class="note">Короткая формула: <code>modules → roadmap → backlog → task → report → status → next task</code>.</p>
+          </section>
+
+          <section id="mvp">
+            <h2>MVP сейчас</h2>
+            <table>
+              <thead><tr><th>Модуль</th><th>Текущее состояние</th><th>Ближайшая задача</th></tr></thead>
+              <tbody>
+                <tr><td>Авторизация</td><td><span class="badge partial">частично</span></td><td><code>tasks/audit/auth.md</code></td></tr>
+                <tr><td>Роли и маршруты</td><td><span class="badge partial">частично</span></td><td><code>tasks/audit/roles-and-routes.md</code></td></tr>
+                <tr><td>Расписание</td><td><span class="badge partial">частично</span></td><td><code>tasks/audit/schedule.md</code></td></tr>
+                <tr><td>Админка</td><td><span class="badge partial">частично</span></td><td><code>tasks/audit/admin.md</code></td></tr>
+                <tr><td>Группы</td><td><span class="badge partial">частично</span></td><td><code>tasks/audit/groups.md</code></td></tr>
+                <tr><td>PWA / Push</td><td><span class="badge partial">частично</span></td><td><code>tasks/audit/pwa-push.md</code></td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="task-types">
+            <h2>Типы задач</h2>
+            <table>
+              <thead><tr><th>Тип</th><th>Что делает</th><th>Пример</th></tr></thead>
+              <tbody>
+                <tr><td><code>audit</code></td><td>Проверяет текущее состояние без изменения кода.</td><td><code>tasks/audit/auth.md</code></td></tr>
+                <tr><td><code>ui</code></td><td>Меняет внешний вид и компоненты.</td><td>Экран управления группами.</td></tr>
+                <tr><td><code>logic</code></td><td>Меняет бизнес-лгику, хуки, состояния.</td><td>Смена статуса занятия.</td></tr>
+                <tr><td><code>data</code></td><td>Меняет Supabase, типы, миграции.</td><td>Новые поля группы.</td></tr>
+                <tr><td><code>integration</code></td><td>Сшивает UI, логику и данные.</td><td>Создать занятие и показать его ролям.</td></tr>
+                <tr><td><code>tests</code></td><td>Проверяет сценарии вручную или автотестами.</td><td>Smoke-сценарии по ролям.</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="files">
+            <h2>Главные файлы системы</h2>
+            <table>
+              <thead><tr><th>Файл</th><th>Зачем нужен</th></tr></thead>
+              <tbody>
+                <tr><td><code>AI_TASK_PROMPT.md</code></td><td>Общие правила для ИИ: границы, что читать, куда писать результат.</td></tr>
+                <tr><td><code>TASK_TEMPLATE.md</code></td><td>Шаблон новой маленькой задачи.</td></tr>
+                <tr><td><code>docs/project-map.md</code></td><td>Карта ролей, экранов, модулей и рисков MVP.</td></tr>
+                <tr><td><code>docs/mvp-scope.md</code></td><td>Что входит и не входит в текущий MVP.</td></tr>
+                <tr><td><code>docs/data-model.md</code></td><td>Таблицы Supabase и что по ним надо проверить.</td></tr>
+                <tr><td><code>status/modules.md</code></td><td>Таблица готовности модулей.</td></tr>
+                <tr><td><code>status/roadmap.md</code></td><td>Этапы движения по MVP.</td></tr>
+                <tr><td><code>tasks/backlog.md</code></td><td>Очередь задач.</td></tr>
+                <tr><td><code>tasks/reports/...</code></td><td>Отчеты о выполненных задачах.</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel active" id="tab-tasks" role="tabpanel" aria-labelledby="tab-button-tasks">
+      <div class="viewer-grid">
+        <div class="viewer-pane">
+          <header>
+            <h2>status/modules.md</h2>
+            <p class="viewer-path">Текущая готовность модулей MVP. Данные встроены в HTML. Для обновления запусти scripts/update-dashboard.cjs.</p>
+          </header>
+          <div id="modules-view" class="md-view"><div class="loading">Загружаю status/modules.md...</div></div>
+        </div>
+        <div class="viewer-pane">
+          <header>
+            <h2>status/roadmap.md</h2>
+            <p class="viewer-path">Этапы движения по текущему MVP. Данные встроены в HTML. Для обновления запусти scripts/update-dashboard.cjs.</p>
+          </header>
+          <div id="roadmap-view" class="md-view"><div class="loading">Загружаю status/roadmap.md...</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="tab-ai" role="tabpanel" aria-labelledby="tab-button-ai">
+      <div class="layout">
+        <nav aria-label="Навигация по ИИ-инструкциям">
+          <a href="#before">Что читает ИИ</a>
+          <a href="#prompt">Промпт запуска</a>
+          <a href="#after">Что пишет ИИ</a>
+        </nav>
+        <div>
+
+
+          <section id="before">
+            <h2>Что ИИ читает перед началом</h2>
+            <ol>
+              <li><code>AI_TASK_PROMPT.md</code></li>
+              <li><code>TASK_TEMPLATE.md</code></li>
+              <li>конкретный task-файл, например <code>tasks/audit/auth.md</code></li>
+              <li><code>docs/project-map.md</code></li>
+              <li><code>docs/mvp-scope.md</code></li>
+              <li><code>status/modules.md</code></li>
+              <li>только файлы из раздела <code>Контекст</code> конкретной задачи</li>
+            </ol>
+          </section>
+
+
+          <section id="prompt">
+            <h2>Промпт запуска задачи</h2>
+            <pre>Выполни задачу из файла:
+
+tasks/audit/auth.md
+
+Работай строго по правилам из:
+
+AI_TASK_PROMPT.md
+TASK_TEMPLATE.md
+
+Код не меняй, если в задаче указано, что это audit.
+После выполнения обнови task-файл и создай отчет в tasks/reports/.</pre>
+          </section>
+
+
+          <section id="after">
+            <h2>Что ИИ пишет после выполнения</h2>
+            <ol>
+              <li>Обновляет сам task-файл: статус, готовность, результат.</li>
+              <li>Создает отчет: <code>tasks/reports/&lt;тип&gt;/&lt;название-задачи&gt;.md</code>.</li>
+              <li>Обновляет <code>status/modules.md</code>, если изменилась готовность модуля.</li>
+              <li>Обновляет <code>tasks/backlog.md</code>, если появились новые задачи.</li>
+            </ol>
+            <pre># Название задачи
+
+Статус: готово / частично / заблокировано
+Дата: YYYY-MM-DD
+Тип: audit / ui / logic / data / integration / test
+Модуль:
+
+## Что сделано
+## Что проверено
+## Измененные файлы
+## Найденные проблемы
+## Риски
+## Следующие задачи</pre>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll('.tab-button'));
+    const panels = Array.from(document.querySelectorAll('.tab-panel'));
+
+    function activateTab(button) {
+      buttons.forEach((item) => item.setAttribute('aria-selected', String(item === button)));
+      panels.forEach((panel) => panel.classList.toggle('active', panel.id === button.getAttribute('aria-controls')));
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => activateTab(button));
+    });
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function inlineFormat(value) {
+      const escaped = escapeHtml(value);
+      return escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+    }
+
+    function statusBadge(value) {
+      const text = value.trim();
+      const classMap = {
+        'запланировано': 'planned',
+        'planned': 'planned',
+        'в работе': 'progress',
+        'in_progress': 'progress',
+        'частично': 'partial',
+        'готово': 'done',
+        'done': 'done',
+        'заблокировано': 'blocked',
+        'blocked': 'blocked'
+      };
+      const cls = classMap[text];
+      return cls ? `<span class="badge ${cls}">${escapeHtml(text)}</span>` : inlineFormat(text);
+    }
+
+    function renderTable(lines, startIndex) {
+      const rows = [];
+      let index = startIndex;
+      while (index < lines.length && /^\s*\|/.test(lines[index])) {
+        rows.push(lines[index]);
+        index += 1;
+      }
+
+      const cells = rows.map((row) => row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()));
+      const header = cells[0] || [];
+      const body = cells.slice(2);
+      const headHtml = header.map((cell) => `<th>${inlineFormat(cell)}</th>`).join('');
+      const bodyHtml = body.map((row) => {
+        const rowHtml = row.map((cell) => `<td>${statusBadge(cell)}</td>`).join('');
+        return `<tr>${rowHtml}</tr>`;
+      }).join('');
+
+      return {
+        html: `<div class="markdown-table"><table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`,
+        nextIndex: index
+      };
+    }
+
+    function renderMarkdown(markdown) {
+      const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+      const parts = [];
+
+      for (let index = 0; index < lines.length;) {
+        const line = lines[index];
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          index += 1;
+          continue;
+        }
+
+        if (/^\s*\|/.test(line) && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) {
+          const table = renderTable(lines, index);
+          parts.push(table.html);
+          index = table.nextIndex;
+          continue;
+        }
+
+        if (trimmed.startsWith('# ')) {
+          parts.push(`<h1>${inlineFormat(trimmed.slice(2))}</h1>`);
+        } else if (trimmed.startsWith('## ')) {
+          parts.push(`<h2>${inlineFormat(trimmed.slice(3))}</h2>`);
+        } else if (trimmed.startsWith('### ')) {
+          parts.push(`<h3>${inlineFormat(trimmed.slice(4))}</h3>`);
+        } else if (/^- \[[ xX]\] /.test(trimmed)) {
+          const done = /^- \[[xX]\]/.test(trimmed);
+          const text = trimmed.replace(/^- \[[ xX]\] /, '');
+          parts.push(`<div class="todo-row"><span class="todo-mark">${done ? '[x]' : '[ ]'}</span><span>${inlineFormat(text)}</span></div>`);
+        } else if (trimmed.startsWith('- ')) {
+          parts.push(`<div class="bullet"><span>${inlineFormat(trimmed.slice(2))}</span></div>`);
+        } else {
+          const withStatus = trimmed.startsWith('Статус:')
+            ? `Статус: ${statusBadge(trimmed.replace('Статус:', '').trim())}`
+            : inlineFormat(trimmed);
+          parts.push(`<p>${withStatus}</p>`);
+        }
+
+        index += 1;
+      }
+
+      return parts.join('\n');
+    }
+
+        function readEmbeddedMarkdown(scriptId) {
+      const script = document.getElementById(scriptId);
+      if (!script) return '';
+      try {
+        return JSON.parse(script.textContent || '""');
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function loadEmbeddedMarkdownView(targetId, scriptId, label) {
+      const target = document.getElementById(targetId);
+      const markdown = readEmbeddedMarkdown(scriptId);
+      if (!markdown) {
+        target.innerHTML = `<div class="error-box">Нет встроенных данных для ${label}. Запусти: node scripts/update-dashboard.cjs</div>`;
+        return;
+      }
+      target.innerHTML = renderMarkdown(markdown);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadEmbeddedMarkdownView('modules-view', 'embedded-modules-md', 'status/modules.md');
+      loadEmbeddedMarkdownView('roadmap-view', 'embedded-roadmap-md', 'status/roadmap.md');
+    });
+  </script>
+  <script type="application/json" id="embedded-modules-md">"﻿# Готовность модулей MVP\n\nСтатусы: запланировано, в работе, частично, готово, заблокировано.\n\n| Модуль | UI | Логика | Данные | Тесты | Общий статус | Следующий шаг |\n|---|---|---|---|---|---|---|\n| Авторизация | частично | частично | готово | запланировано | частично | аудит входа, регистрации, восстановления пароля |\n| Ролевой доступ | частично | частично | частично | запланировано | частично | проверить маршруты для всех ролей |\n| Расписание ученика | частично | частично | готово | запланировано | частично | проверить реальные сценарии ученика |\n| Расписание инструктора | частично | частично | готово | запланировано | частично | проверить смену статуса занятий |\n| Ученики инструктора | частично | частично | готово | запланировано | частично | определить нужные действия на карточке ученика |\n| Админ: дашборд | частично | частично | готово | запланировано | частично | понять минимальный состав статистики |\n| Админ: пользователи | частично | частично | готово | запланировано | частично | проверить роли и назначение инструкторов |\n| Админ: расписание | частично | частично | частично | запланировано | частично | проверить, видит ли админ все занятия |\n| Группы | частично | частично | готово | запланировано | частично | добавить задачу на UI управления группами |\n| Push/PWA | частично | частично | частично | запланировано | частично | проверить установку PWA и OneSignal |\n| Документация задач | в работе | в работе | готово | запланировано | в работе | оформить audit-задачи |\n\n## Легенда\n\n- готово: реализовано и проверено.\n- частично: есть реализация, но нужна проверка или доработка.\n- запланировано: задача известна, но еще не начата.\n- в работе: задача сейчас выполняется или оформляется.\n- заблокировано: нельзя продолжить без внешнего решения, доступа или данных.\r\n"</script>
+  <script type="application/json" id="embedded-roadmap-md">"﻿# Roadmap MVP\n\n## Этап 0. Инвентаризация\n\nСтатус: in_progress\n\n- [x] Найти существующие экраны.\n- [x] Найти существующие feature-модули.\n- [x] Найти таблицы Supabase.\n- [x] Определить частично готовые модули.\n- [ ] Создать audit-задачи по ключевым модулям.\n\n## Этап 1. Аудит текущего MVP\n\nСтатус: planned\n\n- [ ] Аудит авторизации.\n- [ ] Аудит ролей и маршрутов.\n- [ ] Аудит расписания.\n- [ ] Аудит админки.\n- [ ] Аудит групп.\n- [ ] Аудит PWA/push.\n\n## Этап 2. Стабилизация MVP\n\nСтатус: planned\n\n- [ ] Исправить найденные проблемы авторизации.\n- [ ] Исправить найденные проблемы RLS/ролей.\n- [ ] Довести расписание ученика.\n- [ ] Довести расписание инструктора.\n- [ ] Довести админское расписание.\n- [ ] Довести управление пользователями.\n- [ ] Добавить минимальное управление группами.\n\n## Этап 3. Проверка качества\n\nСтатус: planned\n\n- [ ] Добавить базовые тестовые сценарии.\n- [ ] Проверить сборку.\n- [ ] Проверить линтер.\n- [ ] Проверить ручные сценарии по ролям.\n- [ ] Обновить статусы модулей.\n"</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+

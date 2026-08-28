@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { GraduationCap, Eye, EyeOff } from 'lucide-react'
 
 type RegisterFieldErrors = {
-  fullName?: string
+  lastName?: string
+  firstName?: string
+  middleName?: string
   email?: string
   password?: string
 }
@@ -28,7 +30,9 @@ export function RegisterPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { signUp, user } = useAuth()
-  const [fullName, setFullName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [middleName, setMiddleName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -38,7 +42,9 @@ export function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    setFullName('')
+    setLastName('')
+    setFirstName('')
+    setMiddleName('')
     setEmail('')
     setPassword('')
     setShowPassword(false)
@@ -64,8 +70,12 @@ export function RegisterPage() {
 
     const nextFieldErrors: RegisterFieldErrors = {}
 
-    if (!fullName.trim()) {
-      nextFieldErrors.fullName = 'Заполните ФИО.'
+    if (!lastName.trim()) {
+      nextFieldErrors.lastName = 'Заполните фамилию.'
+    }
+
+    if (!firstName.trim()) {
+      nextFieldErrors.firstName = 'Заполните имя.'
     }
 
     if (!email.trim()) {
@@ -84,7 +94,12 @@ export function RegisterPage() {
 
     setIsLoading(true)
 
-    const { error } = await signUp(email.trim(), password, fullName.trim())
+    const fullName = [lastName, firstName, middleName]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' ')
+
+    const { error } = await signUp(email.trim(), password, fullName)
 
     if (error) {
       setError(getRegisterErrorMessage(error.message))
@@ -95,7 +110,9 @@ export function RegisterPage() {
     setConfirmationMessage(
       'На указанный email отправлено письмо. Подтвердите почту, чтобы завершить регистрацию.'
     )
-    setFullName('')
+    setLastName('')
+    setFirstName('')
+    setMiddleName('')
     setEmail('')
     setPassword('')
     setShowPassword(false)
@@ -124,15 +141,36 @@ export function RegisterPage() {
             noValidate
           >
             <Input
-              label="ФИО"
-              name="register-full-name"
+              label="Фамилия"
+              name="register-last-name"
               type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Иванов Иван Иванович"
-              autoComplete="off"
-              error={fieldErrors.fullName}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Иванов"
+              autoComplete="family-name"
+              error={fieldErrors.lastName}
               required
+            />
+            <Input
+              label="Имя"
+              name="register-first-name"
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Иван"
+              autoComplete="given-name"
+              error={fieldErrors.firstName}
+              required
+            />
+            <Input
+              label="Отчество"
+              name="register-middle-name"
+              type="text"
+              value={middleName}
+              onChange={(e) => setMiddleName(e.target.value)}
+              placeholder="Иванович"
+              autoComplete="additional-name"
+              error={fieldErrors.middleName}
             />
             <Input
               label="Email"
