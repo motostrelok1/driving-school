@@ -10,6 +10,7 @@ type RegisterFieldErrors = {
   lastName?: string
   firstName?: string
   middleName?: string
+  phone?: string
   email?: string
   password?: string
 }
@@ -33,6 +34,7 @@ export function RegisterPage() {
   const [lastName, setLastName] = useState('')
   const [firstName, setFirstName] = useState('')
   const [middleName, setMiddleName] = useState('')
+  const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -45,6 +47,7 @@ export function RegisterPage() {
     setLastName('')
     setFirstName('')
     setMiddleName('')
+    setPhone('')
     setEmail('')
     setPassword('')
     setShowPassword(false)
@@ -78,6 +81,10 @@ export function RegisterPage() {
       nextFieldErrors.firstName = 'Заполните имя.'
     }
 
+    if (!phone.trim()) {
+      nextFieldErrors.phone = 'Заполните телефон.'
+    }
+
     if (!email.trim()) {
       nextFieldErrors.email = 'Заполните email.'
     }
@@ -99,7 +106,7 @@ export function RegisterPage() {
       .filter(Boolean)
       .join(' ')
 
-    const { error } = await signUp(email.trim(), password, fullName)
+    const { error } = await signUp(email.trim(), password, fullName, phone.trim())
 
     if (error) {
       setError(getRegisterErrorMessage(error.message))
@@ -113,6 +120,7 @@ export function RegisterPage() {
     setLastName('')
     setFirstName('')
     setMiddleName('')
+    setPhone('')
     setEmail('')
     setPassword('')
     setShowPassword(false)
@@ -171,6 +179,17 @@ export function RegisterPage() {
               placeholder="Иванович"
               autoComplete="additional-name"
               error={fieldErrors.middleName}
+            />
+            <Input
+              label="Телефон"
+              name="register-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+7 999 123-45-67"
+              autoComplete="tel"
+              error={fieldErrors.phone}
+              required
             />
             <Input
               label="Email"
