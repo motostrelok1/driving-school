@@ -93,6 +93,7 @@ export function AdminUsersPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createFullName, setCreateFullName] = useState('')
   const [createEmail, setCreateEmail] = useState('')
+  const [createPhone, setCreatePhone] = useState('')
   const [createPassword, setCreatePassword] = useState('')
   const [createRole, setCreateRole] = useState<UserRole>('student')
   const [createError, setCreateError] = useState<string | null>(null)
@@ -198,6 +199,7 @@ export function AdminUsersPage() {
     setIsCreateOpen(false)
     setCreateFullName('')
     setCreateEmail('')
+    setCreatePhone('')
     setCreatePassword('')
     setCreateRole('student')
     setCreateError(null)
@@ -212,8 +214,8 @@ export function AdminUsersPage() {
     event.preventDefault()
     setCreateError(null)
 
-    if (!createFullName.trim() || !createEmail.trim() || createPassword.length < 6) {
-      setCreateError('Заполните ФИО, email и пароль не короче 6 символов.')
+    if (!createFullName.trim() || !createPhone.trim() || !createEmail.trim() || createPassword.length < 6) {
+      setCreateError('Заполните ФИО, телефон, email и пароль не короче 6 символов.')
       return
     }
 
@@ -222,6 +224,7 @@ export function AdminUsersPage() {
         email: createEmail.trim(),
         password: createPassword,
         fullName: createFullName.trim(),
+        phone: createPhone.trim(),
         role: createRole,
       },
       {
@@ -479,6 +482,15 @@ export function AdminUsersPage() {
                         <p className="break-all text-sm text-muted-foreground">
                           {user.email || 'Email не указан'}
                         </p>
+                        <p className="break-all text-sm text-muted-foreground">
+                          {user.phone ? (
+                            <a href={`tel:${user.phone}`} className="hover:underline">
+                              {user.phone}
+                            </a>
+                          ) : (
+                            'Телефон не указан'
+                          )}
+                        </p>
                         <p className="break-all text-xs text-muted-foreground">
                           {user.id}
                         </p>
@@ -623,6 +635,14 @@ export function AdminUsersPage() {
                 label="ФИО"
                 value={createFullName}
                 onChange={(e) => setCreateFullName(e.target.value)}
+                required
+              />
+              <Input
+                label="Телефон"
+                type="tel"
+                value={createPhone}
+                onChange={(e) => setCreatePhone(e.target.value)}
+                placeholder="+7 999 123-45-67"
                 required
               />
               <Input
