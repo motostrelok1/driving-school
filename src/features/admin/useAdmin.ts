@@ -129,11 +129,13 @@ export function useCreateUser() {
       email,
       password,
       fullName,
+      phone,
       role,
     }: {
       email: string
       password: string
       fullName: string
+      phone: string
       role: UserRole
     }) => {
       const authClient = createIsolatedSupabaseClient()
@@ -143,6 +145,7 @@ export function useCreateUser() {
         options: {
           data: {
             full_name: fullName,
+            phone,
           },
         },
       })
@@ -156,7 +159,7 @@ export function useCreateUser() {
 
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ full_name: fullName, email, role })
+        .update({ full_name: fullName, email, phone, role })
         .eq('id', userId)
 
       if (profileError) throw profileError
