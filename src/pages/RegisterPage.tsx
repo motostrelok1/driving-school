@@ -81,6 +81,10 @@ export function RegisterPage() {
       nextFieldErrors.firstName = 'Заполните имя.'
     }
 
+    if (!middleName.trim()) {
+      nextFieldErrors.middleName = 'Заполните отчество.'
+    }
+
     if (!phone.trim()) {
       nextFieldErrors.phone = 'Заполните телефон.'
     }
@@ -179,6 +183,7 @@ export function RegisterPage() {
               placeholder="Иванович"
               autoComplete="additional-name"
               error={fieldErrors.middleName}
+              required
             />
             <Input
               label="Телефон"
