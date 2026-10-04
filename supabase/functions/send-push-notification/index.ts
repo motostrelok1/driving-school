@@ -61,6 +61,11 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      console.error("Supabase auth.getUser failed:", {
+        message: userError?.message ?? "No user returned",
+        status: userError?.status ?? null,
+        code: userError?.code ?? null,
+      });
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
