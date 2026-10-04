@@ -16,7 +16,7 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\\/assets\\//, /^\\/onesignal\\//],
+        navigateFallbackDenylist: [/^\/assets\//, /^\/onesignal\//],
       },
       devOptions: {
         enabled: true,
