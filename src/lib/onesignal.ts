@@ -27,8 +27,9 @@ export async function initOneSignal() {
     await OneSignal.init({
       appId,
       allowLocalhostAsSecureOrigin: true,
-      serviceWorkerPath: 'onesignal/OneSignalSDKWorker.js',
+      serviceWorkerPath: '/onesignal/OneSignalSDKWorker.js',
       serviceWorkerParam: { scope: '/onesignal/' },
+      serviceWorkerOverrideForTypical: true,
       promptOptions: {
         slidedown: {
           prompts: [
