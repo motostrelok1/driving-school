@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from 'react'
 import { supabase } from '@/lib/supabase'
+import { clearOneSignalUser, identifyOneSignalUser } from '@/lib/onesignal'
 import type { Profile, UserRole } from '@/types'
 import type { User, Session } from '@supabase/supabase-js'
 
@@ -65,6 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+    void identifyOneSignalUser(user.id)
+  }, [user])
 
   async function fetchProfile(userId: string) {
     const { data, error } = await supabase
@@ -127,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    await clearOneSignalUser()
     await supabase.auth.signOut()
   }
 

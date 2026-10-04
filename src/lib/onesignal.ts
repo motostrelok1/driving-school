@@ -138,3 +138,29 @@ export async function subscribeToNotificationChanges(
     OneSignal.Notifications.removeEventListener('permissionChange', handleChange)
   }
 }
+
+export async function identifyOneSignalUser(userId: string) {
+  if (!hasConfiguredAppId()) return
+
+  await initOneSignal()
+
+  try {
+    const OneSignal = await getOneSignal()
+    await OneSignal.login(userId)
+  } catch (error) {
+    console.error('Failed to identify OneSignal user:', error)
+  }
+}
+
+export async function clearOneSignalUser() {
+  if (!hasConfiguredAppId()) return
+
+  await initOneSignal()
+
+  try {
+    const OneSignal = await getOneSignal()
+    await OneSignal.logout()
+  } catch (error) {
+    console.error('Failed to clear OneSignal user:', error)
+  }
+}
