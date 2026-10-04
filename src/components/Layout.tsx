@@ -13,6 +13,7 @@ import {
   Car,
   BookOpen,
   CreditCard,
+  MessageSquare,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
@@ -42,6 +43,12 @@ const navItems: NavItem[] = [
     label: 'Теория',
     href: '/student/theory',
     icon: BookOpen,
+    roles: ['student'],
+  },
+  {
+    label: 'Сообщения',
+    href: '/student/messages',
+    icon: MessageSquare,
     roles: ['student'],
   },
   {
