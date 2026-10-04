@@ -33,6 +33,28 @@ export function useAdminMessageRecipients(messageType: 'notification' | 'message
   })
 }
 
+export function useAdminMessageRecipients(messageType: 'notification' | 'message') {
+  return useQuery({
+    queryKey: ['admin-message-recipients', messageType],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('message_recipients')
+        .select('recipient_id, created_at, profiles!message_recipients_recipient_id_fkey(id, full_name), messages!inner(message_type)')
+        .eq('messages.message_type', messageType)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      const seen = new Set<string>()
+      return (data ?? []).flatMap((item) => {
+        if (seen.has(item.recipient_id)) return []
+        seen.add(item.recipient_id)
+        const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        return profile ? [{ id: item.recipient_id, full_name: profile.full_name, last_at: item.created_at }] : []
+      })
+    },
+  })
+}
+
 export function useAdminUserMessageHistory(userId?: string) {
   return useQuery({
     queryKey: ['admin-user-message-history', userId],
@@ -41,7 +63,7 @@ export function useAdminUserMessageHistory(userId?: string) {
 
       const { data, error } = await supabase
         .from('message_recipients')
-        .select('id, delivery_status, sent_at, created_at, opened_at, error_message, messages(id, body, created_at, message_threads(subject))')
+        .select('id, delivery_status, sent_at, created_at, opened_at, error_message, messages(id, body, message_type, created_at, message_threads(subject))')
         .eq('recipient_id', userId)
         .order('created_at', { ascending: false })
 
