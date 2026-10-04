@@ -309,7 +309,12 @@ export function AdminUsersPage() {
       return
     }
 
-    if (profileEmail.trim() && !profileEmail.includes('@')) {
+    if (!profileEmail.trim()) {
+      setProfileEditError('Заполните email.')
+      return
+    }
+
+    if (!profileEmail.includes('@')) {
       setProfileEditError('Некорректный адрес электронной почты.')
       return
     }
@@ -324,7 +329,7 @@ export function AdminUsersPage() {
         id: userToEditProfile.id,
         updates: {
           full_name: profileFullName.trim(),
-          email: profileEmail.trim() || null,
+          email: profileEmail.trim(),
           phone: profilePhone.trim(),
           role: profileRole,
           instructor_photo_url: profileRole === 'instructor' ? instructorPhotoUrl.trim() || null : null,
@@ -784,6 +789,7 @@ export function AdminUsersPage() {
                 type="email"
                 value={profileEmail}
                 onChange={(e) => setProfileEmail(e.target.value)}
+                required
               />
               <Input
                 label="Телефон"
