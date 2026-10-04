@@ -88,6 +88,12 @@ const navItems: NavItem[] = [
     roles: ['admin'],
   },
   {
+    label: 'Сообщения',
+    href: '/admin/messages',
+    icon: MessageSquare,
+    roles: ['admin'],
+  },
+  {
     label: 'ПДД',
     href: '/admin/pdd',
     icon: BookOpen,
