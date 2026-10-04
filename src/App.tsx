@@ -109,6 +109,9 @@ const AdminSchedulePage = lazy(() =>
     default: module.AdminSchedulePage,
   }))
 )
+const AdminMessagesPage = lazy(() =>
+  import('@/pages/AdminMessagesPage').then((module) => ({ default: module.AdminMessagesPage }))
+)
 const AdminPddPage = lazy(() =>
   import('@/pages/AdminPddPage').then((module) => ({
     default: module.AdminPddPage,
@@ -367,6 +370,14 @@ function App() {
                   <Layout>
                     <AdminSchedulePage />
                   </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/messages"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Layout><AdminMessagesPage /></Layout>
                 </ProtectedRoute>
               }
             />
