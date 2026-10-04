@@ -9,6 +9,25 @@ import type {
   UserRole,
 } from '@/types'
 
+export function useAdminUserMessageHistory(userId?: string) {
+  return useQuery({
+    queryKey: ['admin-user-message-history', userId],
+    queryFn: async () => {
+      if (!userId) return []
+
+      const { data, error } = await supabase
+        .from('message_recipients')
+        .select('id, delivery_status, sent_at, created_at, error_message, messages(id, body, created_at, message_threads(subject))')
+        .eq('recipient_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!userId,
+  })
+}
+
 export function useAllUsers() {
   return useQuery({
     queryKey: ['admin-users'],
