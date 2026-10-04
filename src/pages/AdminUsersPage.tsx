@@ -214,8 +214,14 @@ export function AdminUsersPage() {
     event.preventDefault()
     setCreateError(null)
 
-    if (!createFullName.trim() || !createPhone.trim() || !createEmail.trim() || createPassword.length < 6) {
-      setCreateError('Заполните ФИО, телефон, email и пароль не короче 6 символов.')
+    const fullNameParts = createFullName.trim().split(/\s+/).filter(Boolean)
+    if (fullNameParts.length < 3) {
+      setCreateError('Укажите фамилию, имя и отчество.')
+      return
+    }
+
+    if (!createPhone.trim() || !createEmail.trim() || createPassword.length < 6) {
+      setCreateError('Заполните телефон, email и пароль не короче 6 символов.')
       return
     }
 
@@ -292,8 +298,14 @@ export function AdminUsersPage() {
 
     setProfileEditError(null)
 
-    if (!profileFullName.trim()) {
-      setProfileEditError('Заполните ФИО.')
+    const fullNameParts = profileFullName.trim().split(/\s+/).filter(Boolean)
+    if (fullNameParts.length < 3) {
+      setProfileEditError('Укажите фамилию, имя и отчество.')
+      return
+    }
+
+    if (!profilePhone.trim()) {
+      setProfileEditError('Заполните телефон.')
       return
     }
 
@@ -313,7 +325,7 @@ export function AdminUsersPage() {
         updates: {
           full_name: profileFullName.trim(),
           email: profileEmail.trim() || null,
-          phone: profilePhone.trim() || null,
+          phone: profilePhone.trim(),
           role: profileRole,
           instructor_photo_url: profileRole === 'instructor' ? instructorPhotoUrl.trim() || null : null,
           instructor_age: profileRole === 'instructor' ? parsedInstructorAge : null,
@@ -632,7 +644,7 @@ export function AdminUsersPage() {
             </h2>
             <div className="mt-4 space-y-3">
               <Input
-                label="ФИО"
+                label="ФИО (фамилия, имя, отчество)"
                 value={createFullName}
                 onChange={(e) => setCreateFullName(e.target.value)}
                 required
@@ -762,7 +774,7 @@ export function AdminUsersPage() {
             </h2>
             <div className="mt-4 space-y-3">
               <Input
-                label="ФИО"
+                label="ФИО (фамилия, имя, отчество)"
                 value={profileFullName}
                 onChange={(e) => setProfileFullName(e.target.value)}
                 required
@@ -778,6 +790,7 @@ export function AdminUsersPage() {
                 type="tel"
                 value={profilePhone}
                 onChange={(e) => setProfilePhone(e.target.value)}
+                required
               />
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-primary">
