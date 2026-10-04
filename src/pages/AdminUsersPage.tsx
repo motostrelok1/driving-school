@@ -1070,6 +1070,45 @@ export function AdminUsersPage() {
         </div>
       ) : null}
 
+      {userMessageHistory ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-4 shadow-lg sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">История сообщений</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{userMessageHistory.full_name || 'Без имени'}</p>
+              </div>
+              <button type="button" aria-label="Закрыть" onClick={() => setUserMessageHistory(null)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {isMessageHistoryLoading ? (
+                <p className="text-sm text-muted-foreground">Загрузка истории...</p>
+              ) : messageHistory?.length ? (
+                messageHistory.map((item: any) => (
+                  <div key={item.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium text-primary">{item.messages?.message_threads?.subject || 'Без заголовка'}</p>
+                      <Badge variant={item.delivery_status === 'error' ? 'danger' : 'secondary'}>
+                        {{ sending: 'Отправляется', sent: 'Отправлено', delivered: 'Доставлено', error: 'Ошибка' }[item.delivery_status] || item.delivery_status}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm">{item.messages?.body || 'Текст сообщения недоступен'}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{new Date(item.sent_at || item.created_at).toLocaleString('ru-RU')}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Сообщений пока нет.</p>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <Button variant="outline" onClick={() => setUserMessageHistory(null)}>Закрыть</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {toastMessage ? (
         <div className="fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-primary shadow-lg">
           <span>{toastMessage}</span>
