@@ -32,37 +32,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        if (!session?.user) {
-          setIsLoading(false)
-        }
-      })
-      .catch((error) => {
+    let active = true
+
+    void supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (!active) return
+      if (error) {
         console.error('Error restoring session:', error)
         setSession(null)
         setUser(null)
         setProfile(null)
         setIsLoading(false)
-      })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+        return
+      }
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchProfile(session.user.id)
+        await fetchProfile(session.user.id)
       } else {
         setProfile(null)
         setIsLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') return
+      setSession(session)
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        void fetchProfile(session.user.id)
+      } else {
+        setProfile(null)
+        setIsLoading(false)
+      }
+    })
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
