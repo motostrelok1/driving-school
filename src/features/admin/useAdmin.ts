@@ -24,7 +24,16 @@ export function useAdminUserMessageHistory(userId?: string) {
       if (error) throw error
       return (data ?? []).map((item) => ({
         ...item,
-        messages: Array.isArray(item.messages) ? item.messages[0] ?? null : item.messages,
+        messages: (() => {
+          const message = Array.isArray(item.messages) ? item.messages[0] ?? null : item.messages
+          if (!message) return null
+          return {
+            ...message,
+            message_threads: Array.isArray(message.message_threads)
+              ? message.message_threads[0] ?? null
+              : message.message_threads,
+          }
+        })(),
       }))
     },
     enabled: !!userId,
