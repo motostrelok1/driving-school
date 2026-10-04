@@ -15,7 +15,7 @@ interface AuthContextValue {
   session: Session | null
   role: UserRole | null
   isLoading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; role?: UserRole | null }>
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: Error | null }>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
@@ -57,16 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'INITIAL_SESSION') return
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') return
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) {
-        // Supabase warns against starting another Supabase request directly
-        // inside onAuthStateChange: it can wait on the auth callback lock.
-        setTimeout(() => {
-          void fetchProfile(session.user.id)
-        }, 0)
-      } else {
+      if (!session?.user) {
         setProfile(null)
         setIsLoading(false)
       }
@@ -98,8 +92,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
+    setIsLoading(true)
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      setIsLoading(false)
+      return { error }
+    }
+
+    setSession(data.session)
+    setUser(data.user)
+    await fetchProfile(data.user.id)
+
+    const { data: freshProfile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+
+    return { error: null, role: (freshProfile?.role as UserRole | undefined) ?? null }
   }
 
   async function signUp(
