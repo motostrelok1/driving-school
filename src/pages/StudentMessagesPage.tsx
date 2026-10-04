@@ -3,23 +3,26 @@ import { Bell, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 
-function normalizeMessage(item: any) {
-  const message = Array.isArray(item.messages) ? item.messages[0] ?? null : item.messages
-  if (!message) return { ...item, messages: null }
-  const thread = Array.isArray(message.message_threads) ? message.message_threads[0] ?? null : message.message_threads
-  return { ...item, messages: { ...message, message_threads: thread } }
-}
-
 export function StudentMessagesPage() {
   const queryClient = useQueryClient()
   const { data: messages = [], isLoading, error } = useQuery({
     queryKey: ['my-messages'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('message_recipients')
-        .select('id, message_id, delivery_status, created_at, opened_at, messages(id, body, created_at, message_threads(subject))')
-        .order('created_at', { ascending: false })
+      const { data, error } = await supabase.rpc('get_my_messages')
       if (error) throw error
-      return (data ?? []).map(normalizeMessage)
+      return (data ?? []).map((item) => ({
+        id: item.recipient_id,
+        message_id: item.message_id,
+        delivery_status: item.delivery_status,
+        created_at: item.created_at,
+        opened_at: item.opened_at,
+        messages: {
+          id: item.message_id,
+          body: item.body,
+          created_at: item.message_created_at,
+          message_threads: { subject: item.subject },
+        },
+      }))
     },
   })
 
