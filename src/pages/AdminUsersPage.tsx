@@ -1091,15 +1091,17 @@ export function AdminUsersPage() {
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium text-primary">{item.messages?.message_threads?.subject || 'Без заголовка'}</p>
                       <Badge variant={item.delivery_status === 'error' ? 'danger' : 'secondary'}>
-                        {item.delivery_status === 'sending'
-                          ? 'Отправляется'
-                          : item.delivery_status === 'sent'
-                            ? 'Отправлено'
-                            : item.delivery_status === 'delivered'
-                              ? 'Доставлено'
-                              : item.delivery_status === 'error'
-                                ? 'Ошибка'
-                                : item.delivery_status}
+                        {item.opened_at
+                          ? 'Прочитано'
+                          : item.delivery_status === 'sending'
+                            ? 'Отправляется'
+                            : item.delivery_status === 'sent'
+                              ? 'Отправлено'
+                              : item.delivery_status === 'delivered'
+                                ? 'Доставлено'
+                                : item.delivery_status === 'error'
+                                  ? 'Ошибка'
+                                  : item.delivery_status}
                       </Badge>
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-sm">{item.messages?.body || 'Текст сообщения недоступен'}</p>
