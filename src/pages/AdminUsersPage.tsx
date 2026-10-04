@@ -1086,7 +1086,7 @@ export function AdminUsersPage() {
               {isMessageHistoryLoading ? (
                 <p className="text-sm text-muted-foreground">Загрузка истории...</p>
               ) : messageHistory?.length ? (
-                messageHistory.map((item: any) => (
+                messageHistory.map((item) => (
                   <div key={item.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium text-primary">{item.messages?.message_threads?.subject || 'Без заголовка'}</p>
