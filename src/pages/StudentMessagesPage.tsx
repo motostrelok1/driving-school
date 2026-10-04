@@ -3,6 +3,31 @@ import { Bell, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 
+interface MyMessageRpcRow {
+  recipient_id: string
+  message_id: string
+  delivery_status: string
+  created_at: string
+  opened_at: string | null
+  body: string
+  message_created_at: string
+  subject: string | null
+}
+
+interface StudentMessageItem {
+  id: string
+  message_id: string
+  delivery_status: string
+  created_at: string
+  opened_at: string | null
+  messages: {
+    id: string
+    body: string
+    created_at: string
+    message_threads: { subject: string | null }
+  }
+}
+
 export function StudentMessagesPage() {
   const queryClient = useQueryClient()
   const { data: messages = [], isLoading, error } = useQuery({
@@ -10,7 +35,7 @@ export function StudentMessagesPage() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_my_messages')
       if (error) throw error
-      return (data ?? []).map((item) => ({
+      return ((data ?? []) as MyMessageRpcRow[]).map((item): StudentMessageItem => ({
         id: item.recipient_id,
         message_id: item.message_id,
         delivery_status: item.delivery_status,
