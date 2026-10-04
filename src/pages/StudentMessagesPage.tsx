@@ -28,9 +28,16 @@ export function StudentMessagesPage() {
       const { error } = await supabase.rpc('mark_message_opened', { target_message_id: messageId })
       if (error) throw error
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-messages'] })
+    onSuccess: (_data, messageId) => {
+      queryClient.setQueryData<any[]>(['my-messages'], (current = []) =>
+        current.map((item) =>
+          item.message_id === messageId
+            ? { ...item, opened_at: item.opened_at ?? new Date().toISOString() }
+            : item
+        )
+      )
       window.dispatchEvent(new Event('messages-unread-change'))
+      void queryClient.invalidateQueries({ queryKey: ['my-messages'], refetchType: 'none' })
     },
   })
 
