@@ -22,7 +22,10 @@ export function useAdminUserMessageHistory(userId?: string) {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      return data ?? []
+      return (data ?? []).map((item) => ({
+        ...item,
+        messages: Array.isArray(item.messages) ? item.messages[0] ?? null : item.messages,
+      }))
     },
     enabled: !!userId,
   })
