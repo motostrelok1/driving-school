@@ -17,7 +17,7 @@ export function useAdminUserMessageHistory(userId?: string) {
 
       const { data, error } = await supabase
         .from('message_recipients')
-        .select('id, delivery_status, sent_at, created_at, error_message, messages(id, body, created_at, message_threads(subject))')
+        .select('id, delivery_status, sent_at, created_at, opened_at, error_message, messages(id, body, created_at, message_threads(subject))')
         .eq('recipient_id', userId)
         .order('created_at', { ascending: false })
 
