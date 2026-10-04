@@ -10,6 +10,7 @@ import {
   useSendPasswordReset,
   useStudentFinance,
   useUpsertStudentFinance,
+  useAdminUserMessageHistory,
 } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -126,7 +127,9 @@ export function AdminUsersPage() {
   const [messageBody, setMessageBody] = useState('')
   const [messageError, setMessageError] = useState<string | null>(null)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
+  const [userMessageHistory, setUserMessageHistory] = useState<Profile | null>(null)
   const { data: selectedFinance } = useStudentFinance(userToEditFinance?.id)
+  const { data: messageHistory, isLoading: isMessageHistoryLoading } = useAdminUserMessageHistory(userMessageHistory?.id)
 
   useEffect(() => {
     if (!userToEditFinance) return
@@ -619,6 +622,13 @@ export function AdminUsersPage() {
                           >
                             <MessageSquare className="mr-1.5 h-4 w-4" />
                             Сообщение
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setUserMessageHistory(user)}
+                          >
+                            История
                           </Button>
                           <Button
                             size="sm"
