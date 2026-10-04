@@ -61,7 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        void fetchProfile(session.user.id)
+        // Supabase warns against starting another Supabase request directly
+        // inside onAuthStateChange: it can wait on the auth callback lock.
+        setTimeout(() => {
+          void fetchProfile(session.user.id)
+        }, 0)
       } else {
         setProfile(null)
         setIsLoading(false)
