@@ -33,28 +33,6 @@ export function useAdminMessageRecipients(messageType: 'notification' | 'message
   })
 }
 
-export function useAdminMessageRecipients(messageType: 'notification' | 'message') {
-  return useQuery({
-    queryKey: ['admin-message-recipients', messageType],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('message_recipients')
-        .select('recipient_id, created_at, profiles!message_recipients_recipient_id_fkey(id, full_name), messages!inner(message_type)')
-        .eq('messages.message_type', messageType)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      const seen = new Set<string>()
-      return (data ?? []).flatMap((item) => {
-        if (seen.has(item.recipient_id)) return []
-        seen.add(item.recipient_id)
-        const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
-        return profile ? [{ id: item.recipient_id, full_name: profile.full_name, last_at: item.created_at }] : []
-      })
-    },
-  })
-}
-
 export function useAdminUserMessageHistory(userId?: string) {
   return useQuery({
     queryKey: ['admin-user-message-history', userId],

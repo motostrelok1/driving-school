@@ -17,8 +17,8 @@ export function AdminMessagesPage() {
   return <div className="space-y-6">
     <h1 className="text-2xl font-bold text-primary">Сообщения</h1>
     <div className="flex gap-2">
-      <Button variant={tab === 'notification' ? 'default' : 'outline'} onClick={() => { setTab('notification'); setSelected(null) }}>Уведомления</Button>
-      <Button variant={tab === 'message' ? 'default' : 'outline'} onClick={() => { setTab('message'); setSelected(null) }}>Сообщения</Button>
+      <Button variant={tab === 'notification' ? 'primary' : 'outline'} onClick={() => { setTab('notification'); setSelected(null) }}>Уведомления</Button>
+      <Button variant={tab === 'message' ? 'primary' : 'outline'} onClick={() => { setTab('message'); setSelected(null) }}>Сообщения</Button>
     </div>
     <Card>
       <CardHeader><CardTitle>{tab === 'notification' ? 'Получатели уведомлений' : 'Получатели сообщений'}</CardTitle></CardHeader>
