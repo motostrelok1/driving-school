@@ -16,12 +16,14 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 import type { Profile, UserRole } from '@/types'
 import {
   CalendarDays,
   ChevronDown,
   DollarSign,
   KeyRound,
+  MessageSquare,
   Pencil,
   Plus,
   Search,
@@ -119,6 +121,11 @@ export function AdminUsersPage() {
   const [installmentDueDate, setInstallmentDueDate] = useState('')
   const [financeError, setFinanceError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [userToMessage, setUserToMessage] = useState<Profile | null>(null)
+  const [messageTitle, setMessageTitle] = useState('')
+  const [messageBody, setMessageBody] = useState('')
+  const [messageError, setMessageError] = useState<string | null>(null)
+  const [isSendingMessage, setIsSendingMessage] = useState(false)
   const { data: selectedFinance } = useStudentFinance(userToEditFinance?.id)
 
   useEffect(() => {
@@ -353,6 +360,52 @@ export function AdminUsersPage() {
     )
   }
 
+  function openMessage(user: Profile) {
+    setUserToMessage(user)
+    setMessageTitle('')
+    setMessageBody('')
+    setMessageError(null)
+  }
+
+  function closeMessage() {
+    if (isSendingMessage) return
+    setUserToMessage(null)
+    setMessageTitle('')
+    setMessageBody('')
+    setMessageError(null)
+  }
+
+  async function handleMessageSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!userToMessage || isSendingMessage) return
+
+    const title = messageTitle.trim()
+    const message = messageBody.trim()
+    if (!title || !message) {
+      setMessageError('Заполните заголовок и текст уведомления.')
+      return
+    }
+
+    setMessageError(null)
+    setIsSendingMessage(true)
+
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: { userId: userToMessage.id, title, message },
+    })
+
+    setIsSendingMessage(false)
+
+    if (error) {
+      setMessageError(error.message || 'Не удалось отправить уведомление.')
+      return
+    }
+
+    setUserToMessage(null)
+    setMessageTitle('')
+    setMessageBody('')
+    setToastMessage('Уведомление отправлено и сохранено в истории.')
+  }
+
   function openFinanceEdit(user: Profile) {
     setUserToEditFinance(user)
     setContractAmount('')
@@ -562,6 +615,14 @@ export function AdminUsersPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => openMessage(user)}
+                          >
+                            <MessageSquare className="mr-1.5 h-4 w-4" />
+                            Сообщение
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="border-red-200 bg-white text-red-800 hover:bg-red-100"
                             aria-label="Удалить пользователя"
                             onClick={() => {
@@ -723,6 +784,58 @@ export function AdminUsersPage() {
               </Button>
               <Button type="submit" isLoading={createUser.isPending}>
                 Создать
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {userToMessage ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
+          <form
+            onSubmit={handleMessageSubmit}
+            className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-lg sm:p-5"
+          >
+            <h2 className="text-lg font-semibold text-primary">Сообщение</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {userToMessage.full_name || 'Без имени'}
+            </p>
+            <div className="mt-4 space-y-3">
+              <Input
+                label="Заголовок"
+                value={messageTitle}
+                onChange={(e) => setMessageTitle(e.target.value)}
+                required
+              />
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-primary">
+                  Текст уведомления
+                </label>
+                <textarea
+                  value={messageBody}
+                  onChange={(e) => setMessageBody(e.target.value)}
+                  required
+                  rows={5}
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-primary outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </div>
+            {messageError ? (
+              <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+                {messageError}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeMessage}
+                disabled={isSendingMessage}
+              >
+                Отмена
+              </Button>
+              <Button type="submit" isLoading={isSendingMessage}>
+                Отправить
               </Button>
             </div>
           </form>
