@@ -1,10 +1,32 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAllUsers, useGroups } from '@/features/admin/useAdmin'
 import { Users, GraduationCap, Car, Shield } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+const TEST_PUSH_USER_ID = 'bce359b5-0005-44c8-a8cd-83798374797c'
 
 export function AdminDashboardPage() {
   const { data: users } = useAllUsers()
   const { data: groups } = useGroups()
+
+  async function sendTestPush() {
+    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: TEST_PUSH_USER_ID,
+        title: 'Тест уведомлений',
+        message: 'Персональные push-уведомления работают.',
+      },
+    })
+
+    if (error) {
+      console.error('Test push failed:', error)
+      window.alert('Ошибка отправки тестового уведомления.')
+      return
+    }
+
+    console.log('Test push result:', data)
+    window.alert('Тестовое уведомление отправлено.')
+  }
 
   const stats = [
     {
@@ -31,7 +53,16 @@ export function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-primary">Панель управления</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-primary">Панель управления</h1>
+        <button
+          type="button"
+          onClick={sendTestPush}
+          className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700"
+        >
+          Тест push
+        </button>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
