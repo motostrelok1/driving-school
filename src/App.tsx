@@ -81,6 +81,9 @@ const StudentTheoryExamPage = lazy(() =>
     default: module.StudentTheoryExamPage,
   }))
 )
+const StudentMessagesPage = lazy(() =>
+  import('@/pages/StudentMessagesPage').then((module) => ({ default: module.StudentMessagesPage }))
+)
 const StudentPaymentPage = lazy(() =>
   import('@/pages/StudentPaymentPage').then((module) => ({
     default: module.StudentPaymentPage,
@@ -294,6 +297,14 @@ function App() {
                   <Layout>
                     <StudentTheoryExamPage />
                   </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/messages"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Layout><StudentMessagesPage /></Layout>
                 </ProtectedRoute>
               }
             />
