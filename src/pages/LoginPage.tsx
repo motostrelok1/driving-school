@@ -50,7 +50,7 @@ export function LoginPage() {
       return
     }
 
-    const { error } = await signIn(email, password)
+    const { error, role } = await signIn(email, password)
 
     if (error) {
       setError(getAuthErrorMessage(error.message))
@@ -58,7 +58,14 @@ export function LoginPage() {
       return
     }
 
-    navigate('/')
+    navigate(
+      role === 'admin'
+        ? '/admin'
+        : role === 'instructor'
+          ? '/instructor/schedule'
+          : '/student/profile',
+      { replace: true }
+    )
   }
 
   function toggleResetMode() {
