@@ -45,10 +45,11 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const oneSignalAppId = Deno.env.get("ONESIGNAL_APP_ID");
     const oneSignalApiKey = Deno.env.get("ONESIGNAL_REST_API_KEY");
 
-    if (!supabaseUrl || !supabaseAnonKey || !oneSignalAppId || !oneSignalApiKey) {
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey || !oneSignalAppId || !oneSignalApiKey) {
       console.error("Required environment variables are missing");
       return jsonResponse({ error: "Server configuration error" }, 500);
     }
@@ -82,6 +83,53 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "userId, title and message are required" }, 400);
     }
 
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    const { data: thread, error: threadError } = await adminSupabase
+      .from("message_threads")
+      .insert({ subject: title, created_by: user.id })
+      .select("id")
+      .single();
+
+    if (threadError || !thread) {
+      console.error("Failed to create message thread:", threadError);
+      return jsonResponse({ error: "Failed to save message" }, 500);
+    }
+
+    const { data: savedMessage, error: messageError } = await adminSupabase
+      .from("messages")
+      .insert({
+        thread_id: thread.id,
+        sender_id: user.id,
+        body: message,
+        message_type: "notification",
+        allow_reply: false,
+      })
+      .select("id")
+      .single();
+
+    if (messageError || !savedMessage) {
+      console.error("Failed to create message:", messageError);
+      await adminSupabase.from("message_threads").delete().eq("id", thread.id);
+      return jsonResponse({ error: "Failed to save message" }, 500);
+    }
+
+    const { data: recipient, error: recipientError } = await adminSupabase
+      .from("message_recipients")
+      .insert({
+        message_id: savedMessage.id,
+        recipient_id: userId,
+        delivery_status: "sending",
+      })
+      .select("id")
+      .single();
+
+    if (recipientError || !recipient) {
+      console.error("Failed to create message recipient:", recipientError);
+      await adminSupabase.from("message_threads").delete().eq("id", thread.id);
+      return jsonResponse({ error: "Failed to save message recipient" }, 500);
+    }
+
     const oneSignalResponse = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
@@ -101,15 +149,36 @@ Deno.serve(async (req) => {
 
     if (!oneSignalResponse.ok) {
       console.error("OneSignal error:", oneSignalResult);
+      await adminSupabase.from("message_recipients").update({
+        delivery_status: "error",
+        error_message: JSON.stringify(oneSignalResult),
+      }).eq("id", recipient.id);
       return jsonResponse({
         error: "Failed to send notification",
         details: oneSignalResult,
       }, 502);
     }
 
+    const notificationId = oneSignalResult.id ?? null;
+
+    const { error: statusError } = await adminSupabase
+      .from("message_recipients")
+      .update({
+        delivery_status: "sent",
+        onesignal_notification_id: notificationId,
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .eq("id", recipient.id);
+
+    if (statusError) {
+      console.error("Failed to update message delivery status:", statusError);
+    }
+
     return jsonResponse({
       success: true,
-      notificationId: oneSignalResult.id ?? null,
+      notificationId,
+      messageId: savedMessage.id,
     });
   } catch (error) {
     console.error("send-push-notification error:", error);
