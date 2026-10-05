@@ -17,12 +17,50 @@ export function AdminMessagesPage() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [conversation, setConversation] = useState<any[]>([])
+  const [conversationLoading, setConversationLoading] = useState(false)
+  const [adminReply, setAdminReply] = useState('')
   const { data: recipients = [], isLoading } = useAdminMessageRecipients(tab)
   const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
   const { data: history = [], isLoading: historyLoading } = useAdminUserMessageHistory(selected?.id)
   const filtered = history.filter((item) => item.messages?.message_type === tab)
   const recipientIds = new Set(recipients.map((person) => person.id))
   const availableUsers = allUsers.filter((person) => person.role !== 'admin' && !recipientIds.has(person.id))
+
+  async function openHistory(person: { id: string; full_name: string | null }) {
+    setSelected(person)
+    if (tab !== 'message') return
+    setConversationLoading(true)
+    const { data: userHistory } = await supabase
+      .from('message_recipients')
+      .select('messages!inner(thread_id, message_type)')
+      .eq('recipient_id', person.id)
+      .eq('messages.message_type', 'message')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const nested = userHistory?.[0]?.messages
+    const firstMessage = Array.isArray(nested) ? nested[0] : nested
+    if (firstMessage?.thread_id) {
+      const { data } = await supabase.rpc('get_admin_conversation', { target_thread_id: firstMessage.thread_id })
+      setConversation(data ?? [])
+    } else setConversation([])
+    setConversationLoading(false)
+  }
+
+  async function sendAdminReply() {
+    if (!selected || !adminReply.trim() || conversation.length === 0) return
+    const latest = history.find((item) => item.messages?.message_type === 'message')
+    const threadId = latest?.messages?.thread_id
+    if (!threadId) return
+    const { error } = await supabase.rpc('admin_reply_to_thread', {
+      target_thread_id: threadId,
+      reply_body: adminReply.trim(),
+      target_user_id: selected.id,
+    })
+    if (error) { setToast(error.message); return }
+    setAdminReply('')
+    await openHistory(selected)
+  }
 
   function openSend(person: { id: string; full_name: string | null }) {
     setSendTo(person)
@@ -76,7 +114,7 @@ export function AdminMessagesPage() {
           <div className="divide-y divide-border">
             {recipients.map((person) =>
             <div key={person.id} className="flex items-center gap-3 py-3">
-              <button onClick={() => setSelected(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+              <button onClick={() => void openHistory(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
                 <span className="truncate font-medium">{person.full_name || person.id}</span>
                 <span className="shrink-0 text-sm text-muted-foreground">{new Date(person.last_at).toLocaleString('ru-RU')}</span>
               </button>
@@ -119,7 +157,13 @@ export function AdminMessagesPage() {
           <div><h2 className="text-xl font-bold">{tab === 'notification' ? 'Уведомления' : 'Сообщения'}</h2><p className="text-muted-foreground">{selected.full_name}</p></div>
           <button onClick={() => setSelected(null)}><X className="h-5 w-5" /></button>
         </div>
-        {historyLoading ? <p>Загрузка...</p> : filtered.length === 0 ? <p>История пуста.</p> :
+        {tab === 'message' && conversationLoading ? <p>Загрузка переписки...</p> : tab === 'message' && conversation.length > 0 ?
+          <div className="space-y-3">{conversation.map((item) => <div key={item.message_id} className="rounded-xl border border-border p-4">
+            <div className="flex justify-between gap-3"><strong>{item.sender_name || 'Пользователь'}</strong><span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString('ru-RU')}</span></div>
+            <p className="mt-2 whitespace-pre-wrap">{item.body}</p>
+          </div>)}
+            <div className="flex gap-2"><input className="flex-1 rounded-lg border border-border px-3 py-2" value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Ответить пользователю..." /><Button onClick={() => void sendAdminReply()} disabled={!adminReply.trim()}>Ответить</Button></div>
+          </div> : historyLoading ? <p>Загрузка...</p> : filtered.length === 0 ? <p>История пуста.</p> :
           <div className="space-y-3">{filtered.map((item) => <div key={item.id} className="rounded-xl border border-border p-4">
             <div className="mb-2 flex justify-between gap-3">
               <strong>{item.messages?.message_threads?.subject || (tab === 'notification' ? 'Уведомление' : 'Сообщение')}</strong>
