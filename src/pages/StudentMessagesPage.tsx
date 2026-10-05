@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -12,6 +13,10 @@ interface MyMessageRpcRow {
   body: string
   message_created_at: string
   subject: string | null
+  thread_id: string | null
+  message_type: 'notification' | 'message'
+  allow_reply: boolean
+  sender_id: string | null
 }
 
 interface StudentMessageItem {
@@ -25,11 +30,17 @@ interface StudentMessageItem {
     body: string
     created_at: string
     message_threads: { subject: string | null }
+    thread_id: string | null
+    message_type: 'notification' | 'message'
+    allow_reply: boolean
   }
 }
 
 export function StudentMessagesPage() {
   const queryClient = useQueryClient()
+  const [replyTo, setReplyTo] = useState<StudentMessageItem | null>(null)
+  const [replyBody, setReplyBody] = useState('')
+  const [replyError, setReplyError] = useState<string | null>(null)
   const { data: messages = [], isLoading, error } = useQuery({
     queryKey: ['my-messages'],
     queryFn: async () => {
@@ -46,6 +57,9 @@ export function StudentMessagesPage() {
           body: item.body,
           created_at: item.message_created_at,
           message_threads: { subject: item.subject },
+          thread_id: item.thread_id,
+          message_type: item.message_type,
+          allow_reply: item.allow_reply,
         },
       }))
     },
@@ -72,6 +86,22 @@ export function StudentMessagesPage() {
     },
   })
 
+  async function handleReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!replyTo?.messages.thread_id || !replyBody.trim()) return
+    setReplyError(null)
+    const { error } = await supabase.rpc('send_reply', {
+      target_thread_id: replyTo.messages.thread_id,
+      reply_body: replyBody.trim(),
+    })
+    if (error) {
+      setReplyError(error.message)
+      return
+    }
+    setReplyTo(null)
+    setReplyBody('')
+  }
+
   if (isLoading) return <p className="text-sm text-muted-foreground">Загрузка сообщений...</p>
   if (error) return <p className="text-sm text-red-600">Не удалось загрузить сообщения.</p>
 
@@ -82,7 +112,19 @@ export function StudentMessagesPage() {
         <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-primary">{item.messages?.message_threads?.subject || 'Без заголовка'}</h2><p className="mt-1 text-xs text-muted-foreground">{new Date(item.messages?.created_at || item.created_at).toLocaleString('ru-RU')}</p></div>
         {item.opened_at ? <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Прочитано</span> : <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">Новое</span>}</div>
         <p className="mt-3 whitespace-pre-wrap text-sm">{item.messages?.body || 'Текст сообщения недоступен'}</p>
-        {!item.opened_at && item.message_id ? <Button className="mt-3" size="sm" variant="outline" onClick={() => markOpened.mutate(item.message_id)} isLoading={markOpened.isPending}>Отметить прочитанным</Button> : null}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {!item.opened_at && item.message_id ? <Button size="sm" variant="outline" onClick={() => markOpened.mutate(item.message_id)} isLoading={markOpened.isPending}>Отметить прочитанным</Button> : null}
+          {item.messages.message_type === 'message' && item.messages.allow_reply ? <Button size="sm" onClick={() => { setReplyTo(item); setReplyBody(''); setReplyError(null) }}>Ответить</Button> : null}
+        </div>
       </article>)}</div>}
+    {replyTo ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form onSubmit={handleReply} className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
+        <h2 className="text-lg font-semibold text-primary">Ответить</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{replyTo.messages.message_threads.subject || 'Сообщение автошколы'}</p>
+        <textarea className="mt-4 min-h-32 w-full rounded-lg border border-border px-3 py-2" value={replyBody} onChange={(e) => setReplyBody(e.target.value)} placeholder="Введите ответ..." required />
+        {replyError ? <p className="mt-2 text-sm text-red-600">{replyError}</p> : null}
+        <div className="mt-4 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setReplyTo(null)}>Отмена</Button><Button type="submit">Отправить ответ</Button></div>
+      </form>
+    </div> : null}
   </div>
 }
