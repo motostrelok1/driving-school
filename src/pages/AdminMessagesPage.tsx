@@ -31,11 +31,7 @@ export function AdminMessagesPage() {
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!sendTo || isSending) return
-    if (tab !== 'notification') {
-      setSendError('Отправка сообщений с ответом будет добавлена на следующем этапе.')
-      return
-    }
-    if (!title.trim() || !body.trim()) {
+     if (!title.trim() || !body.trim()) {
       setSendError('Заполните заголовок и текст уведомления.')
       return
     }
@@ -43,7 +39,13 @@ export function AdminMessagesPage() {
     setIsSending(true)
     setSendError(null)
     const { error } = await supabase.functions.invoke('send-push-notification', {
-      body: { userId: sendTo.id, title: title.trim(), message: body.trim() },
+      body: {
+        userId: sendTo.id,
+        title: title.trim(),
+        message: body.trim(),
+        messageType: tab,
+        allowReply: tab === 'message',
+      },
     })
     setIsSending(false)
 
@@ -55,7 +57,7 @@ export function AdminMessagesPage() {
     setSendTo(null)
     setTitle('')
     setBody('')
-    setToast('Уведомление отправлено и сохранено в истории.')
+    setToast(tab === 'message' ? 'Сообщение отправлено. Пользователь может ответить.' : 'Уведомление отправлено и сохранено в истории.')
   }
 
   return <div className="space-y-6">
@@ -89,6 +91,7 @@ export function AdminMessagesPage() {
         </div>
         <div className="mt-4 space-y-3">
           <label className="block text-sm font-medium">Заголовок<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} required /></label>
+          {tab === 'message' ? <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">На это сообщение пользователь сможет ответить в приложении.</p> : null}
           <label className="block text-sm font-medium">Текст {tab === 'notification' ? 'уведомления' : 'сообщения'}<textarea className="mt-1 min-h-32 w-full rounded-lg border border-border px-3 py-2" value={body} onChange={(e) => setBody(e.target.value)} required /></label>
         </div>
         {sendError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{sendError}</p> : null}
