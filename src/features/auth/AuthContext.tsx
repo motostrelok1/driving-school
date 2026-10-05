@@ -155,8 +155,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    await clearOneSignalUser()
-    await supabase.auth.signOut()
+    const oneSignalLogout = clearOneSignalUser()
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
+
+    if (error) {
+      console.error('Error signing out:', error)
+      throw error
+    }
+
+    setSession(null)
+    setUser(null)
+    setProfile(null)
+    setIsLoading(false)
+
+    void oneSignalLogout
   }
 
   const value: AuthContextValue = {
