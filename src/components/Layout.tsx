@@ -106,14 +106,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const visibleNav = navItems.filter(
     (item) => role && item.roles.includes(role)
   )
 
   async function handleSignOut() {
-    await signOut()
-    navigate('/login')
+    if (isSigningOut) return
+    setIsSigningOut(true)
+    try {
+      await signOut()
+      navigate('/login', { replace: true })
+    } catch {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -152,6 +159,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="sm"
               onClick={handleSignOut}
+              isLoading={isSigningOut}
+              disabled={isSigningOut}
               className="hidden sm:inline-flex"
             >
               <LogOut className="mr-1.5 h-4 w-4" />
@@ -192,6 +201,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="sm"
               onClick={handleSignOut}
+              isLoading={isSigningOut}
+              disabled={isSigningOut}
               className="mt-4 justify-start sm:hidden"
             >
               <LogOut className="mr-1.5 h-4 w-4" />
