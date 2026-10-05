@@ -148,6 +148,9 @@ Deno.serve(async (req) => {
         include_aliases: { external_id: [userId] },
         headings: { en: title },
         contents: { en: message },
+        url: "https://dvizh-school.ru/student/messages",
+        web_url: "https://dvizh-school.ru/student/messages",
+        data: { messageId: savedMessage.id, path: "/student/messages" },
       }),
     });
 
