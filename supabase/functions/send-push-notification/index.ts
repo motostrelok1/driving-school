@@ -5,6 +5,8 @@ interface PushPayload {
   userId: string;
   title: string;
   message: string;
+  messageType?: "notification" | "message";
+  allowReply?: boolean;
 }
 
 const corsHeaders = {
@@ -84,6 +86,8 @@ Deno.serve(async (req) => {
     const userId = body.userId?.trim();
     const title = body.title?.trim();
     const message = body.message?.trim();
+    const messageType = body.messageType === "message" ? "message" : "notification";
+    const allowReply = messageType === "message" && body.allowReply === true;
 
     if (!userId || !title || !message) {
       return jsonResponse({ error: "userId, title and message are required" }, 400);
@@ -108,8 +112,8 @@ Deno.serve(async (req) => {
         thread_id: thread.id,
         sender_id: user.id,
         body: message,
-        message_type: "notification",
-        allow_reply: false,
+        message_type: messageType,
+        allow_reply: allowReply,
       })
       .select("id")
       .single();
