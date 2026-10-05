@@ -49,6 +49,8 @@ export function StudentMessagesPage() {
         },
       }))
     },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 
   const markOpened = useMutation({
