@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import {
   disableNotifications,
@@ -22,6 +23,7 @@ const statusStyles: Record<NotificationStatus, string> = {
 }
 
 export function NotificationButton() {
+  const navigate = useNavigate()
   const [status, setStatus] = useState<NotificationStatus>('unknown')
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isBusy, setIsBusy] = useState(false)
@@ -39,6 +41,9 @@ export function NotificationButton() {
       return count ?? 0
     },
     enabled: !!user && role === 'student',
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: role === 'student' ? 5000 : false,
   })
 
   async function refreshStatus() {
@@ -67,6 +72,11 @@ export function NotificationButton() {
   }, [])
 
   async function handleClick() {
+    if (shouldBlink) {
+      navigate('/student/messages')
+      return
+    }
+
     if (status === 'enabled') {
       setIsConfirmOpen(true)
       return
