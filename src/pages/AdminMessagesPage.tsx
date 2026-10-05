@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useAdminMessageRecipients, useAdminUserMessageHistory } from '@/features/admin/useAdmin'
+import { useAdminMessageRecipients, useAdminUserMessageHistory, useAllUsers } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -18,8 +18,11 @@ export function AdminMessagesPage() {
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const { data: recipients = [], isLoading } = useAdminMessageRecipients(tab)
+  const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
   const { data: history = [], isLoading: historyLoading } = useAdminUserMessageHistory(selected?.id)
   const filtered = history.filter((item) => item.messages?.message_type === tab)
+  const recipientIds = new Set(recipients.map((person) => person.id))
+  const availableUsers = allUsers.filter((person) => person.role !== 'admin' && !recipientIds.has(person.id))
 
   function openSend(person: { id: string; full_name: string | null }) {
     setSendTo(person)
@@ -69,8 +72,9 @@ export function AdminMessagesPage() {
     <Card>
       <CardHeader><CardTitle>{tab === 'notification' ? 'Получатели уведомлений' : 'Получатели сообщений'}</CardTitle></CardHeader>
       <CardContent>
-        {isLoading ? <p>Загрузка...</p> : recipients.length === 0 ? <p className="text-muted-foreground">Пока ничего не отправлялось.</p> :
-          <div className="divide-y divide-border">{recipients.map((person) =>
+        {isLoading || usersLoading ? <p>Загрузка...</p> :
+          <div className="divide-y divide-border">
+            {recipients.map((person) =>
             <div key={person.id} className="flex items-center gap-3 py-3">
               <button onClick={() => setSelected(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
                 <span className="truncate font-medium">{person.full_name || person.id}</span>
@@ -80,7 +84,17 @@ export function AdminMessagesPage() {
                 <Send className="mr-1.5 h-4 w-4" />Отправить
               </Button>
             </div>
-          )}</div>}
+          )}
+          {availableUsers.map((person) => (
+            <div key={person.id} className="flex items-center gap-3 py-3">
+              <div className="min-w-0 flex-1"><span className="truncate font-medium">{person.full_name || person.id}</span><span className="ml-2 text-sm text-muted-foreground">ещё не отправлялось</span></div>
+              <Button size="sm" variant="outline" onClick={() => openSend(person)}>
+                <Send className="mr-1.5 h-4 w-4" />Отправить
+              </Button>
+            </div>
+          ))}
+          {recipients.length === 0 && availableUsers.length === 0 ? <p className="py-3 text-muted-foreground">Нет доступных получателей.</p> : null}
+          </div>}
       </CardContent>
     </Card>
     {sendTo ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
