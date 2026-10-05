@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 import {
   disableNotifications,
   getNotificationStatus,
@@ -11,8 +14,6 @@ import { Button } from '@/components/ui/Button'
 import { Bell } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
-const UNREAD_STORAGE_KEY = 'driving-school-has-unread-notifications'
-
 const statusStyles: Record<NotificationStatus, string> = {
   unknown: 'border-border bg-white text-primary hover:bg-muted',
   enabled: 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100',
@@ -24,27 +25,25 @@ export function NotificationButton() {
   const [status, setStatus] = useState<NotificationStatus>('unknown')
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isBusy, setIsBusy] = useState(false)
-  const [hasUnread, setHasUnread] = useState(() =>
-    localStorage.getItem(UNREAD_STORAGE_KEY) === 'true'
-  )
+  const { user, role } = useAuth()
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['unread-message-count', user?.id],
+    queryFn: async () => {
+      if (!user) return 0
+      const { count, error } = await supabase
+        .from('message_recipients')
+        .select('id', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .is('opened_at', null)
+      if (error) throw error
+      return count ?? 0
+    },
+    enabled: !!user && role === 'student',
+  })
 
   async function refreshStatus() {
     setStatus(await getNotificationStatus())
   }
-
-  useEffect(() => {
-    function handleUnreadChange() {
-      setHasUnread(localStorage.getItem(UNREAD_STORAGE_KEY) === 'true')
-    }
-
-    window.addEventListener('storage', handleUnreadChange)
-    window.addEventListener('notifications-unread-change', handleUnreadChange)
-
-    return () => {
-      window.removeEventListener('storage', handleUnreadChange)
-      window.removeEventListener('notifications-unread-change', handleUnreadChange)
-    }
-  }, [])
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
@@ -87,7 +86,7 @@ export function NotificationButton() {
     setIsConfirmOpen(false)
   }
 
-  const shouldBlink = status === 'enabled' && hasUnread
+  const shouldBlink = role === 'student' && unreadCount > 0
 
   const title =
     shouldBlink
@@ -115,6 +114,11 @@ export function NotificationButton() {
               shouldBlink && 'animate-notification-bell text-red-600'
             )}
           />
+          {shouldBlink ? (
+            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white animate-pulse">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          ) : null}
         </span>
         <span className="hidden sm:inline">
           {'\u0423\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f'}

@@ -64,7 +64,8 @@ export function StudentMessagesPage() {
             : item
         )
       )
-      window.dispatchEvent(new Event('messages-unread-change'))
+      queryClient.setQueryData<number>(['unread-message-count'], (current = 0) => Math.max(0, current - 1))
+      void queryClient.invalidateQueries({ queryKey: ['unread-message-count'] })
       void queryClient.invalidateQueries({ queryKey: ['my-messages'], refetchType: 'none' })
     },
   })
