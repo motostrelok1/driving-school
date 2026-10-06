@@ -57,6 +57,7 @@ export function AdminMessagesPage() {
   const [conversation, setConversation] = useState<ConversationItem[]>([])
   const [conversationLoading, setConversationLoading] = useState(false)
   const [adminReply, setAdminReply] = useState('')
+  const [showGroupParticipants, setShowGroupParticipants] = useState(false)
 
   const [newChatOpen, setNewChatOpen] = useState(false)
   const [newChatSearch, setNewChatSearch] = useState('')
@@ -140,6 +141,7 @@ export function AdminMessagesPage() {
     setActiveChat(chat)
     setConversationLoading(true)
     setAdminReply('')
+    setShowGroupParticipants(false)
 
     if (chat.is_group) {
       const { error: openedError } = await supabase.rpc('mark_thread_opened', { target_thread_id: chat.thread_id })
@@ -549,10 +551,28 @@ export function AdminMessagesPage() {
         <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <h2 className="truncate font-semibold text-primary">{activeChat.is_group ? (activeChat.subject || 'Групповой чат') : (activeChat.participant_names[0] || activeChat.subject || 'Переписка')}</h2>
-            <p className="truncate text-xs text-muted-foreground">{activeChat.is_group ? activeChat.participant_names.join(', ') : 'Личная переписка'}</p>
+            {activeChat.is_group ? (
+              <button
+                type="button"
+                onClick={() => setShowGroupParticipants((value) => !value)}
+                className="mt-0.5 text-left text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-primary"
+              >
+                Групповой чат с: {activeChat.participant_names.length} участниками
+              </button>
+            ) : <p className="text-xs text-muted-foreground">Личная переписка</p>}
           </div>
           <button onClick={() => setActiveChat(null)} aria-label="Закрыть"><X className="h-5 w-5" /></button>
         </div>
+        {activeChat.is_group && showGroupParticipants ? (
+          <div className="border-b border-border bg-white px-4 py-3">
+            <div className="rounded-xl border border-border p-4">
+              <p className="mb-2 text-sm font-semibold">Участники ({activeChat.participant_names.length})</p>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                {activeChat.participant_names.map((name) => <div key={name}>{name}</div>)}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="flex-1 space-y-2 overflow-y-auto bg-slate-50 p-4">
           {conversationLoading ? <p className="text-sm text-muted-foreground">Загрузка переписки...</p> : conversation.map((item) => {
             const mine = item.sender_id === user?.id
