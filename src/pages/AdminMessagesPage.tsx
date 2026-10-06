@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Send, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 type Tab = 'notification' | 'message'
 
@@ -20,6 +21,8 @@ export function AdminMessagesPage() {
   const [conversation, setConversation] = useState<any[]>([])
   const [conversationLoading, setConversationLoading] = useState(false)
   const [adminReply, setAdminReply] = useState('')
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const { user } = useAuth()
   const { data: recipients = [], isLoading } = useAdminMessageRecipients(tab)
   const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
   const { data: history = [], isLoading: historyLoading } = useAdminUserMessageHistory(selected?.id)
@@ -41,16 +44,20 @@ export function AdminMessagesPage() {
     const nested = userHistory?.[0]?.messages
     const firstMessage = Array.isArray(nested) ? nested[0] : nested
     if (firstMessage?.thread_id) {
+      setActiveThreadId(firstMessage.thread_id)
       const { data } = await supabase.rpc('get_admin_conversation', { target_thread_id: firstMessage.thread_id })
       setConversation(data ?? [])
-    } else setConversation([])
+    } else {
+      setActiveThreadId(null)
+      setConversation([])
+    }
     setConversationLoading(false)
   }
 
   async function sendAdminReply() {
     if (!selected || !adminReply.trim() || conversation.length === 0) return
-    const latest = history.find((item) => item.messages?.message_type === 'message')
-    const threadId = latest?.messages?.thread_id
+    const latest = history.find((item) => item.messages?.thread_id === activeThreadId)
+    const threadId = activeThreadId
     if (!threadId) return
     const subject = latest?.messages?.message_threads?.subject || 'Новое сообщение'
     const { error } = await supabase.functions.invoke('send-push-notification', {
@@ -111,7 +118,7 @@ export function AdminMessagesPage() {
     <h1 className="text-2xl font-bold text-primary">Сообщения</h1>
     <div className="flex gap-2">
       <Button variant={tab === 'notification' ? 'primary' : 'outline'} onClick={() => { setTab('notification'); setSelected(null) }}>Уведомления</Button>
-      <Button variant={tab === 'message' ? 'primary' : 'outline'} onClick={() => { setTab('message'); setSelected(null) }}>Сообщения</Button>
+      <Button variant={tab === 'message' ? 'primary' : 'outline'} onClick={() => { setTab('message'); setSelected(null) }}>Переписка</Button>
     </div>
     <Card>
       <CardHeader><CardTitle>{tab === 'notification' ? 'Получатели уведомлений' : 'Получатели сообщений'}</CardTitle></CardHeader>
@@ -160,15 +167,29 @@ export function AdminMessagesPage() {
     {selected ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
         <div className="mb-4 flex justify-between gap-4">
-          <div><h2 className="text-xl font-bold">{tab === 'notification' ? 'Уведомления' : 'Сообщения'}</h2><p className="text-muted-foreground">{selected.full_name}</p></div>
+          <div><h2 className="text-xl font-bold">{tab === 'notification' ? 'Уведомления' : 'Переписка'}</h2><p className="text-muted-foreground">{selected.full_name}</p></div>
           <button onClick={() => setSelected(null)}><X className="h-5 w-5" /></button>
         </div>
         {tab === 'message' && conversationLoading ? <p>Загрузка переписки...</p> : tab === 'message' && conversation.length > 0 ?
-          <div className="space-y-3">{conversation.map((item) => <div key={item.message_id} className="rounded-xl border border-border p-4">
-            <div className="flex justify-between gap-3"><strong>{item.sender_name || 'Пользователь'}</strong><span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString('ru-RU')}</span></div>
-            <p className="mt-2 whitespace-pre-wrap">{item.body}</p>
-          </div>)}
-            <div className="flex gap-2"><input className="flex-1 rounded-lg border border-border px-3 py-2" value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Ответить пользователю..." /><Button onClick={() => void sendAdminReply()} disabled={!adminReply.trim()}>Ответить</Button></div>
+          <div className="overflow-hidden rounded-xl border border-border">
+            <div className="max-h-[58vh] space-y-2 overflow-y-auto bg-slate-50 p-4">
+              {conversation.map((item) => {
+                const mine = item.sender_id === user?.id
+                return <div key={item.message_id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[82%] rounded-2xl px-4 py-2 shadow-sm ${mine ? 'bg-primary text-white' : 'border border-border bg-white text-primary'}`}>
+                    <p className="whitespace-pre-wrap text-sm">{item.body}</p>
+                    <div className={`mt-1 flex gap-2 text-[11px] ${mine ? 'justify-end text-white/70' : 'text-muted-foreground'}`}>
+                      {!mine ? <span>{item.sender_name || selected.full_name || 'Пользователь'}</span> : null}
+                      <span>{new Date(item.created_at).toLocaleString('ru-RU')}</span>
+                    </div>
+                  </div>
+                </div>
+              })}
+            </div>
+            <div className="flex items-end gap-2 border-t border-border bg-white p-3">
+              <textarea className="min-h-11 max-h-32 flex-1 resize-y rounded-xl border border-border px-3 py-2" value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Сообщение..." />
+              <Button onClick={() => void sendAdminReply()} disabled={!adminReply.trim()}>Отправить</Button>
+            </div>
           </div> : historyLoading ? <p>Загрузка...</p> : filtered.length === 0 ? <p>История пуста.</p> :
           <div className="space-y-3">{filtered.map((item) => <div key={item.id} className="rounded-xl border border-border p-4">
             <div className="mb-2 flex justify-between gap-3">

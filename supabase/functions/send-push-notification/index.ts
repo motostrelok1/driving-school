@@ -8,6 +8,7 @@ interface PushPayload {
   messageType?: "notification" | "message";
   allowReply?: boolean;
   threadId?: string;
+  action?: "reply";
 }
 
 const corsHeaders = {
@@ -79,11 +80,131 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    if (profileError || profile?.role !== "admin") {
+    if (profileError || !profile) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
 
     const body: PushPayload = await req.json();
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    if (body.action === "reply") {
+      const threadId = body.threadId?.trim();
+      const message = body.message?.trim();
+
+      if (!threadId || !message) {
+        return jsonResponse({ error: "threadId and message are required" }, 400);
+      }
+
+      const { data: thread, error: threadError } = await adminSupabase
+        .from("message_threads")
+        .select("id, subject, created_by")
+        .eq("id", threadId)
+        .maybeSingle();
+
+      if (threadError || !thread?.created_by) {
+        return jsonResponse({ error: "Conversation not found" }, 404);
+      }
+
+      const { data: allowedReply, error: allowedReplyError } = await adminSupabase
+        .from("message_recipients")
+        .select("message_id, messages!inner(thread_id, message_type, allow_reply)")
+        .eq("recipient_id", user.id)
+        .eq("messages.thread_id", threadId)
+        .eq("messages.message_type", "message")
+        .eq("messages.allow_reply", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (allowedReplyError || !allowedReply) {
+        return jsonResponse({ error: "Reply is not allowed" }, 403);
+      }
+
+      const { data: savedReply, error: replyError } = await adminSupabase
+        .from("messages")
+        .insert({
+          thread_id: threadId,
+          sender_id: user.id,
+          body: message,
+          message_type: "message",
+          allow_reply: true,
+        })
+        .select("id")
+        .single();
+
+      if (replyError || !savedReply) {
+        console.error("Failed to save reply:", replyError);
+        return jsonResponse({ error: "Failed to save reply" }, 500);
+      }
+
+      const { data: adminRecipient, error: recipientError } = await adminSupabase
+        .from("message_recipients")
+        .insert({
+          message_id: savedReply.id,
+          recipient_id: thread.created_by,
+          delivery_status: "sending",
+        })
+        .select("id")
+        .single();
+
+      if (recipientError || !adminRecipient) {
+        console.error("Failed to create admin recipient:", recipientError);
+        return jsonResponse({ error: "Failed to save reply recipient" }, 500);
+      }
+
+      await adminSupabase
+        .from("message_threads")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", threadId);
+
+      const replyPushResponse = await fetch("https://api.onesignal.com/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Key ${oneSignalApiKey}`,
+        },
+        body: JSON.stringify({
+          app_id: oneSignalAppId,
+          target_channel: "push",
+          include_aliases: { external_id: [thread.created_by] },
+          headings: { en: thread.subject || "Новый ответ" },
+          contents: { en: message },
+          web_url: "https://dvizh-school.ru/admin/messages",
+          data: { messageId: savedReply.id, threadId, path: "/admin/messages" },
+        }),
+      });
+
+      const replyPushResult = await replyPushResponse.json();
+
+      if (!replyPushResponse.ok) {
+        console.error("OneSignal admin reply error:", replyPushResult);
+        await adminSupabase.from("message_recipients").update({
+          delivery_status: "error",
+          error_message: JSON.stringify(replyPushResult),
+        }).eq("id", adminRecipient.id);
+        return jsonResponse({
+          error: "Reply saved, but push failed",
+          details: replyPushResult,
+        }, 502);
+      }
+
+      await adminSupabase.from("message_recipients").update({
+        delivery_status: "sent",
+        onesignal_notification_id: replyPushResult.id ?? null,
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      }).eq("id", adminRecipient.id);
+
+      return jsonResponse({
+        success: true,
+        notificationId: replyPushResult.id ?? null,
+        messageId: savedReply.id,
+      });
+    }
+
+    if (profile.role !== "admin") {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+
     const userId = body.userId?.trim();
     const title = body.title?.trim();
     const message = body.message?.trim();
@@ -94,8 +215,6 @@ Deno.serve(async (req) => {
     if (!userId || !title || !message) {
       return jsonResponse({ error: "userId, title and message are required" }, 400);
     }
-
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     let activeThreadId = threadId ?? null;
 
@@ -166,8 +285,13 @@ Deno.serve(async (req) => {
         include_aliases: { external_id: [userId] },
         headings: { en: title },
         contents: { en: message },
-        web_url: "https://dvizh-school.ru/student/messages",
-        data: { messageId: savedMessage.id, path: "/student/messages" },
+        web_url: messageType === "message"
+          ? "https://dvizh-school.ru/student/messages?tab=message"
+          : "https://dvizh-school.ru/student/messages",
+        data: {
+          messageId: savedMessage.id,
+          path: messageType === "message" ? "/student/messages?tab=message" : "/student/messages",
+        },
       }),
     });
 
