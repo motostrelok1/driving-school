@@ -319,7 +319,7 @@ export function AdminMessagesPage() {
         setNewChatBody('')
         setNewChatError(null)
         setNewChatOpen(true)
-      }}><Plus className="mr-1.5 h-4 w-4" />Новый чат</Button> : null}
+      }}><Plus className="mr-1.5 h-4 w-4" />Новый чат</Button>}
     </div>
 
     <div className="flex gap-2">
