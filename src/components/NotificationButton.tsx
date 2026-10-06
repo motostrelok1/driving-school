@@ -40,10 +40,10 @@ export function NotificationButton() {
       if (error) throw error
       return count ?? 0
     },
-    enabled: !!user && role === 'student',
+    enabled: !!user && (role === 'student' || role === 'admin'),
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchInterval: role === 'student' ? 5000 : false,
+    refetchInterval: role === 'student' || role === 'admin' ? 5000 : false,
   })
 
   async function refreshStatus() {
@@ -73,7 +73,7 @@ export function NotificationButton() {
 
   async function handleClick() {
     if (shouldBlink) {
-      navigate('/student/messages')
+      navigate(role === 'admin' ? '/admin/messages?tab=message' : '/student/messages')
       return
     }
 
@@ -96,7 +96,7 @@ export function NotificationButton() {
     setIsConfirmOpen(false)
   }
 
-  const shouldBlink = role === 'student' && unreadCount > 0
+  const shouldBlink = (role === 'student' || role === 'admin') && unreadCount > 0
 
   const title =
     shouldBlink
