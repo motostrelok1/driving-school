@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCircle2, MessageCircle, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -129,6 +129,20 @@ export function StudentMessagesPage() {
       (a, b) => new Date(b.messages.created_at).getTime() - new Date(a.messages.created_at).getTime()
     )
   }, [messages])
+
+  useEffect(() => {
+    if (tab !== 'message' || chatThreads.length === 0 || activeThread) return
+    const threadId = new URLSearchParams(window.location.search).get('thread')
+    if (!threadId) return
+
+    const target = chatThreads.find((item) => item.messages.thread_id === threadId)
+    if (!target) return
+
+    void openChat(target)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('thread')
+    window.history.replaceState({}, '', url)
+  }, [tab, chatThreads, activeThread])
 
   async function openChat(item: StudentMessageItem) {
     if (!item.messages.thread_id) return

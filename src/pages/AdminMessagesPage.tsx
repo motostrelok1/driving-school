@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdminUserMessageHistory, useAllUsers } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
@@ -136,6 +136,20 @@ export function AdminMessagesPage() {
     else url.searchParams.delete('tab')
     window.history.replaceState({}, '', url)
   }
+
+  useEffect(() => {
+    if (tab !== 'message' || chats.length === 0 || activeChat) return
+    const threadId = new URLSearchParams(window.location.search).get('thread')
+    if (!threadId) return
+
+    const target = chats.find((chat) => chat.thread_id === threadId)
+    if (!target) return
+
+    void openChat(target)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('thread')
+    window.history.replaceState({}, '', url)
+  }, [tab, chats, activeChat])
 
   async function openChat(chat: ChatThread) {
     setActiveChat(chat)
