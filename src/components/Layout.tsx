@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
     roles: ['student'],
   },
   {
-    label: 'Сообщения',
+    label: 'Переписка',
     href: '/student/messages',
     icon: MessageSquare,
     roles: ['student'],
@@ -88,7 +88,7 @@ const navItems: NavItem[] = [
     roles: ['admin'],
   },
   {
-    label: 'Сообщения',
+    label: 'Переписка',
     href: '/admin/messages',
     icon: MessageSquare,
     roles: ['admin'],

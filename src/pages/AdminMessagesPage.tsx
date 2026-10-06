@@ -47,6 +47,15 @@ export function AdminMessagesPage() {
   const [adminReply, setAdminReply] = useState('')
 
   const [newChatOpen, setNewChatOpen] = useState(false)
+  const [newChatSearch, setNewChatSearch] = useState('')
+  const [newNotificationOpen, setNewNotificationOpen] = useState(false)
+  const [newNotificationMode, setNewNotificationMode] = useState<'personal' | 'group'>('personal')
+  const [newNotificationUsers, setNewNotificationUsers] = useState<string[]>([])
+  const [newNotificationSearch, setNewNotificationSearch] = useState('')
+  const [newNotificationTitle, setNewNotificationTitle] = useState('')
+  const [newNotificationBody, setNewNotificationBody] = useState('')
+  const [newNotificationError, setNewNotificationError] = useState<string | null>(null)
+  const [creatingNotification, setCreatingNotification] = useState(false)
   const [newChatMode, setNewChatMode] = useState<'personal' | 'group'>('personal')
   const [newChatUsers, setNewChatUsers] = useState<string[]>([])
   const [newChatTitle, setNewChatTitle] = useState('')
@@ -77,7 +86,21 @@ export function AdminMessagesPage() {
     refetchInterval: 5000,
   })
 
-  const availableUsers = allUsers.filter((person) => person.role !== 'admin')
+  const availableUsers = allUsers
+    .filter((person) => person.role !== 'admin')
+    .sort((a, b) => (a.full_name || a.email || '').localeCompare(b.full_name || b.email || '', 'ru'))
+
+  const filteredNewChatUsers = availableUsers.filter((person) =>
+    (person.full_name || person.email || '').toLocaleLowerCase('ru').includes(newChatSearch.trim().toLocaleLowerCase('ru'))
+  )
+
+  const filteredNewNotificationUsers = availableUsers.filter((person) =>
+    (person.full_name || person.email || '').toLocaleLowerCase('ru').includes(newNotificationSearch.trim().toLocaleLowerCase('ru'))
+  )
+
+  const sortedNotificationRecipients = [...notificationRecipients].sort((a, b) =>
+    (a.full_name || '').localeCompare(b.full_name || '', 'ru')
+  )
 
   function changeTab(next: Tab) {
     setTab(next)
@@ -182,6 +205,53 @@ export function AdminMessagesPage() {
     setToast('Уведомление отправлено и сохранено в истории.')
   }
 
+  function toggleNewNotificationUser(userId: string) {
+    if (newNotificationMode === 'personal') {
+      setNewNotificationUsers([userId])
+      return
+    }
+    setNewNotificationUsers((current) => current.includes(userId)
+      ? current.filter((id) => id !== userId)
+      : [...current, userId])
+  }
+
+  async function createNotification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const minUsers = newNotificationMode === 'group' ? 2 : 1
+    if (newNotificationUsers.length < minUsers || !newNotificationTitle.trim() || !newNotificationBody.trim()) {
+      setNewNotificationError(newNotificationMode === 'group'
+        ? 'Выберите минимум двух получателей и заполните заголовок и текст.'
+        : 'Выберите пользователя и заполните заголовок и текст.')
+      return
+    }
+
+    setCreatingNotification(true)
+    setNewNotificationError(null)
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userIds: newNotificationUsers,
+        title: newNotificationTitle.trim(),
+        message: newNotificationBody.trim(),
+        messageType: 'notification',
+        allowReply: false,
+      },
+    })
+    setCreatingNotification(false)
+
+    if (error) {
+      setNewNotificationError(error.message || 'Не удалось отправить уведомление.')
+      return
+    }
+
+    setNewNotificationOpen(false)
+    setNewNotificationUsers([])
+    setNewNotificationSearch('')
+    setNewNotificationTitle('')
+    setNewNotificationBody('')
+    setToast('Уведомление отправлено.')
+    void queryClient.invalidateQueries({ queryKey: ['admin-message-recipients', 'notification'] })
+  }
+
   function toggleNewChatUser(userId: string) {
     if (newChatMode === 'personal') {
       setNewChatUsers([userId])
@@ -232,10 +302,19 @@ export function AdminMessagesPage() {
 
   return <div className="space-y-6">
     <div className="flex items-center justify-between gap-3">
-      <h1 className="text-2xl font-bold text-primary">Сообщения</h1>
-      {tab === 'message' ? <Button size="sm" onClick={() => {
+      <h1 className="text-2xl font-bold text-primary">Переписка</h1>
+      {tab === 'notification' ? <Button size="sm" onClick={() => {
+        setNewNotificationMode('personal')
+        setNewNotificationUsers([])
+        setNewNotificationSearch('')
+        setNewNotificationTitle('')
+        setNewNotificationBody('')
+        setNewNotificationError(null)
+        setNewNotificationOpen(true)
+      }}><Plus className="mr-1.5 h-4 w-4" />Новое уведомление</Button> : <Button size="sm" onClick={() => {
         setNewChatMode('personal')
         setNewChatUsers([])
+        setNewChatSearch('')
         setNewChatTitle('')
         setNewChatBody('')
         setNewChatError(null)
@@ -253,7 +332,7 @@ export function AdminMessagesPage() {
       <CardContent>
         {notificationRecipientsLoading || usersLoading ? <p>Загрузка...</p> :
           <div className="divide-y divide-border">
-            {notificationRecipients.map((person) => <div key={person.id} className="flex items-center gap-3 py-3">
+            {sortedNotificationRecipients.map((person) => <div key={person.id} className="flex items-center gap-3 py-3">
               <button onClick={() => setSelectedNotificationUser(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
                 <span className="truncate font-medium">{person.full_name || person.id}</span>
                 <span className="shrink-0 text-sm text-muted-foreground">{new Date(person.last_at).toLocaleString('ru-RU')}</span>
@@ -262,14 +341,7 @@ export function AdminMessagesPage() {
                 <Send className="mr-1.5 h-4 w-4" />Отправить
               </Button>
             </div>)}
-            {availableUsers.filter((person) => !notificationRecipients.some((recipient) => recipient.id === person.id)).map((person) => (
-              <div key={person.id} className="flex items-center gap-3 py-3">
-                <div className="min-w-0 flex-1"><span className="truncate font-medium">{person.full_name || person.id}</span><span className="ml-2 text-sm text-muted-foreground">ещё не отправлялось</span></div>
-                <Button size="sm" variant="outline" onClick={() => openNotificationSend(person)}>
-                  <Send className="mr-1.5 h-4 w-4" />Отправить
-                </Button>
-              </div>
-            ))}
+            {sortedNotificationRecipients.length === 0 ? <p className="py-6 text-center text-muted-foreground">Уведомлений пока нет. Нажмите «Новое уведомление».</p> : null}
           </div>}
       </CardContent>
     </Card> : <Card>
@@ -318,6 +390,45 @@ export function AdminMessagesPage() {
       </form>
     </div> : null}
 
+    {newNotificationOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form onSubmit={createNotification} className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div><h2 className="text-xl font-bold">Новое уведомление</h2><p className="text-sm text-muted-foreground">Одному или нескольким пользователям</p></div>
+          <button type="button" onClick={() => !creatingNotification && setNewNotificationOpen(false)}><X className="h-5 w-5" /></button>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <Button type="button" size="sm" variant={newNotificationMode === 'personal' ? 'primary' : 'outline'} onClick={() => { setNewNotificationMode('personal'); setNewNotificationUsers([]) }}>Личное</Button>
+          <Button type="button" size="sm" variant={newNotificationMode === 'group' ? 'primary' : 'outline'} onClick={() => { setNewNotificationMode('group'); setNewNotificationUsers([]) }}>Групповое</Button>
+        </div>
+        <input
+          className="mt-4 w-full rounded-lg border border-border px-3 py-2"
+          value={newNotificationSearch}
+          onChange={(e) => setNewNotificationSearch(e.target.value)}
+          placeholder="Поиск по ФИО..."
+        />
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
+          {filteredNewNotificationUsers.map((person) => {
+            const checked = newNotificationUsers.includes(person.id)
+            return <label key={person.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-slate-50">
+              <input
+                type={newNotificationMode === 'personal' ? 'radio' : 'checkbox'}
+                name="notification-user"
+                checked={checked}
+                onChange={() => toggleNewNotificationUser(person.id)}
+              />
+              <span>{person.full_name || person.email || person.id}</span>
+            </label>
+          })}
+        </div>
+        <div className="mt-4 space-y-3">
+          <label className="block text-sm font-medium">Заголовок<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={newNotificationTitle} onChange={(e) => setNewNotificationTitle(e.target.value)} required /></label>
+          <label className="block text-sm font-medium">Текст уведомления<textarea className="mt-1 min-h-24 w-full rounded-lg border border-border px-3 py-2" value={newNotificationBody} onChange={(e) => setNewNotificationBody(e.target.value)} required /></label>
+        </div>
+        {newNotificationError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{newNotificationError}</p> : null}
+        <div className="mt-5 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setNewNotificationOpen(false)} disabled={creatingNotification}>Отмена</Button><Button type="submit" isLoading={creatingNotification}>Отправить</Button></div>
+      </form>
+    </div> : null}
+
     {newChatOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <form onSubmit={createChat} className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
@@ -328,8 +439,14 @@ export function AdminMessagesPage() {
           <Button type="button" size="sm" variant={newChatMode === 'personal' ? 'primary' : 'outline'} onClick={() => { setNewChatMode('personal'); setNewChatUsers([]) }}>Личный</Button>
           <Button type="button" size="sm" variant={newChatMode === 'group' ? 'primary' : 'outline'} onClick={() => { setNewChatMode('group'); setNewChatUsers([]) }}>Групповой</Button>
         </div>
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
-          {availableUsers.map((person) => {
+        <input
+          className="mt-4 w-full rounded-lg border border-border px-3 py-2"
+          value={newChatSearch}
+          onChange={(e) => setNewChatSearch(e.target.value)}
+          placeholder="Поиск по ФИО..."
+        />
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
+          {filteredNewChatUsers.map((person) => {
             const checked = newChatUsers.includes(person.id)
             return <label key={person.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-slate-50">
               <input
