@@ -93,13 +93,37 @@ export function AdminMessagesPage() {
     setActiveChat(chat)
     setConversationLoading(true)
     setAdminReply('')
-    const { error: openedError } = await supabase.rpc('mark_thread_opened', { target_thread_id: chat.thread_id })
-    if (!openedError) {
-      void queryClient.invalidateQueries({ queryKey: ['unread-message-count'] })
-      void refetchChats()
+
+    if (chat.is_group) {
+      const { error: openedError } = await supabase.rpc('mark_thread_opened', { target_thread_id: chat.thread_id })
+      if (!openedError) {
+        void queryClient.invalidateQueries({ queryKey: ['unread-message-count'] })
+        void refetchChats()
+      }
+      const { data, error } = await supabase.rpc('get_admin_conversation', { target_thread_id: chat.thread_id })
+      setConversation(error ? [] : ((data ?? []) as ConversationItem[]))
+    } else {
+      const participantId = chat.participant_ids[0]
+      if (!participantId) {
+        setConversation([])
+        setConversationLoading(false)
+        return
+      }
+
+      const { error: openedError } = await supabase.rpc('mark_admin_personal_chat_opened', {
+        target_user_id: participantId,
+      })
+      if (!openedError) {
+        void queryClient.invalidateQueries({ queryKey: ['unread-message-count'] })
+        void refetchChats()
+      }
+
+      const { data, error } = await supabase.rpc('get_admin_personal_conversation', {
+        target_user_id: participantId,
+      })
+      setConversation(error ? [] : ((data ?? []) as ConversationItem[]))
     }
-    const { data, error } = await supabase.rpc('get_admin_conversation', { target_thread_id: chat.thread_id })
-    setConversation(error ? [] : ((data ?? []) as ConversationItem[]))
+
     setConversationLoading(false)
   }
 
