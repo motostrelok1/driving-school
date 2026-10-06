@@ -52,10 +52,16 @@ export function AdminMessagesPage() {
     const latest = history.find((item) => item.messages?.message_type === 'message')
     const threadId = latest?.messages?.thread_id
     if (!threadId) return
-    const { error } = await supabase.rpc('admin_reply_to_thread', {
-      target_thread_id: threadId,
-      reply_body: adminReply.trim(),
-      target_user_id: selected.id,
+    const subject = latest?.messages?.message_threads?.subject || 'Новое сообщение'
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: selected.id,
+        title: subject,
+        message: adminReply.trim(),
+        messageType: 'message',
+        allowReply: true,
+        threadId,
+      },
     })
     if (error) { setToast(error.message); return }
     setAdminReply('')
