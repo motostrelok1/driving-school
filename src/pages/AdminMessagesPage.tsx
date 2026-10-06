@@ -401,7 +401,6 @@ export function AdminMessagesPage() {
                 <strong className="truncate">{chat.is_group ? (chat.subject || 'Групповой чат') : (chat.participant_names[0] || chat.subject || 'Переписка')}</strong>
                 <span className="shrink-0 text-xs text-muted-foreground">{chat.last_at ? new Date(chat.last_at).toLocaleString('ru-RU') : ''}</span>
               </div>
-              {chat.is_group ? <p className="truncate text-xs text-muted-foreground">{chat.participant_names.join(', ')}</p> : null}
               <p className="mt-1 truncate text-sm text-muted-foreground">{chat.last_message || 'Нет сообщений'}</p>
             </div>
             {chat.unread_count > 0 ? <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white">{chat.unread_count > 9 ? '9+' : chat.unread_count}</span> : null}
