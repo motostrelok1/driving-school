@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    if (profileError || profile?.role !== "admin") {
+    if (profileError || !profile) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
 
@@ -201,6 +201,9 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (profile.role !== "admin") {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
 
     const userId = body.userId?.trim();
     const title = body.title?.trim();
