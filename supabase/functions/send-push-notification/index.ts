@@ -7,6 +7,7 @@ interface PushPayload {
   message: string;
   messageType?: "notification" | "message";
   allowReply?: boolean;
+  threadId?: string;
 }
 
 const corsHeaders = {
@@ -86,6 +87,7 @@ Deno.serve(async (req) => {
     const userId = body.userId?.trim();
     const title = body.title?.trim();
     const message = body.message?.trim();
+    const threadId = body.threadId?.trim();
     const messageType = body.messageType === "message" ? "message" : "notification";
     const allowReply = messageType === "message" && body.allowReply === true;
 
@@ -95,21 +97,33 @@ Deno.serve(async (req) => {
 
     const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    const { data: thread, error: threadError } = await adminSupabase
-      .from("message_threads")
-      .insert({ subject: title, created_by: user.id })
-      .select("id")
-      .single();
+    let activeThreadId = threadId ?? null;
 
-    if (threadError || !thread) {
-      console.error("Failed to create message thread:", threadError);
-      return jsonResponse({ error: "Failed to save message" }, 500);
+    if (activeThreadId) {
+      const { data: existingThread } = await adminSupabase
+        .from("message_threads")
+        .select("id")
+        .eq("id", activeThreadId)
+        .maybeSingle();
+      if (!existingThread) return jsonResponse({ error: "Conversation not found" }, 404);
+    } else {
+      const { data: thread, error: threadError } = await adminSupabase
+        .from("message_threads")
+        .insert({ subject: title, created_by: user.id })
+        .select("id")
+        .single();
+
+      if (threadError || !thread) {
+        console.error("Failed to create message thread:", threadError);
+        return jsonResponse({ error: "Failed to save message" }, 500);
+      }
+      activeThreadId = thread.id;
     }
 
     const { data: savedMessage, error: messageError } = await adminSupabase
       .from("messages")
       .insert({
-        thread_id: thread.id,
+        thread_id: activeThreadId,
         sender_id: user.id,
         body: message,
         message_type: messageType,
@@ -120,7 +134,7 @@ Deno.serve(async (req) => {
 
     if (messageError || !savedMessage) {
       console.error("Failed to create message:", messageError);
-      await adminSupabase.from("message_threads").delete().eq("id", thread.id);
+      if (!threadId) await adminSupabase.from("message_threads").delete().eq("id", activeThreadId);
       return jsonResponse({ error: "Failed to save message" }, 500);
     }
 
@@ -136,7 +150,7 @@ Deno.serve(async (req) => {
 
     if (recipientError || !recipient) {
       console.error("Failed to create message recipient:", recipientError);
-      await adminSupabase.from("message_threads").delete().eq("id", thread.id);
+      if (!threadId) await adminSupabase.from("message_threads").delete().eq("id", activeThreadId);
       return jsonResponse({ error: "Failed to save message recipient" }, 500);
     }
 
