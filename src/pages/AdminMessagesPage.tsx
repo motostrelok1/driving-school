@@ -1,95 +1,141 @@
 import { useState, type FormEvent } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdminMessageRecipients, useAdminUserMessageHistory, useAllUsers } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { Send, X } from 'lucide-react'
+import { MessageCircle, Plus, Send, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 
 type Tab = 'notification' | 'message'
 
+interface ChatThread {
+  thread_id: string
+  subject: string | null
+  is_group: boolean
+  participant_ids: string[]
+  participant_names: string[]
+  last_message: string | null
+  last_at: string | null
+  unread_count: number
+}
+
+interface ConversationItem {
+  message_id: string
+  sender_id: string | null
+  sender_name: string | null
+  body: string
+  created_at: string
+  allow_reply: boolean
+}
+
 export function AdminMessagesPage() {
-  const [tab, setTab] = useState<Tab>('notification')
-  const [selected, setSelected] = useState<{ id: string; full_name: string | null } | null>(null)
+  const initialTab = new URLSearchParams(window.location.search).get('tab') === 'message' ? 'message' : 'notification'
+  const [tab, setTab] = useState<Tab>(initialTab)
+  const [selectedNotificationUser, setSelectedNotificationUser] = useState<{ id: string; full_name: string | null } | null>(null)
   const [sendTo, setSendTo] = useState<{ id: string; full_name: string | null } | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [conversation, setConversation] = useState<any[]>([])
+
+  const [activeChat, setActiveChat] = useState<ChatThread | null>(null)
+  const [conversation, setConversation] = useState<ConversationItem[]>([])
   const [conversationLoading, setConversationLoading] = useState(false)
   const [adminReply, setAdminReply] = useState('')
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
-  const { user } = useAuth()
-  const { data: recipients = [], isLoading } = useAdminMessageRecipients(tab)
-  const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
-  const { data: history = [], isLoading: historyLoading } = useAdminUserMessageHistory(selected?.id)
-  const filtered = history.filter((item) => item.messages?.message_type === tab)
-  const recipientIds = new Set(recipients.map((person) => person.id))
-  const availableUsers = allUsers.filter((person) => person.role !== 'admin' && !recipientIds.has(person.id))
 
-  async function openHistory(person: { id: string; full_name: string | null }) {
-    setSelected(person)
-    if (tab !== 'message') return
+  const [newChatOpen, setNewChatOpen] = useState(false)
+  const [newChatMode, setNewChatMode] = useState<'personal' | 'group'>('personal')
+  const [newChatUsers, setNewChatUsers] = useState<string[]>([])
+  const [newChatTitle, setNewChatTitle] = useState('')
+  const [newChatBody, setNewChatBody] = useState('')
+  const [newChatError, setNewChatError] = useState<string | null>(null)
+  const [creatingChat, setCreatingChat] = useState(false)
+
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const { data: notificationRecipients = [], isLoading: notificationRecipientsLoading } = useAdminMessageRecipients('notification')
+  const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
+  const { data: notificationHistory = [], isLoading: notificationHistoryLoading } = useAdminUserMessageHistory(selectedNotificationUser?.id)
+
+  const { data: chats = [], isLoading: chatsLoading, refetch: refetchChats } = useQuery({
+    queryKey: ['admin-chat-threads'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_admin_chat_threads')
+      if (error) throw error
+      return ((data ?? []) as ChatThread[]).map((item) => ({
+        ...item,
+        participant_ids: item.participant_ids ?? [],
+        participant_names: item.participant_names ?? [],
+        unread_count: Number(item.unread_count ?? 0),
+      }))
+    },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000,
+  })
+
+  const availableUsers = allUsers.filter((person) => person.role !== 'admin')
+
+  function changeTab(next: Tab) {
+    setTab(next)
+    setSelectedNotificationUser(null)
+    setActiveChat(null)
+    const url = new URL(window.location.href)
+    if (next === 'message') url.searchParams.set('tab', 'message')
+    else url.searchParams.delete('tab')
+    window.history.replaceState({}, '', url)
+  }
+
+  async function openChat(chat: ChatThread) {
+    setActiveChat(chat)
     setConversationLoading(true)
-    const { data: userHistory } = await supabase
-      .from('message_recipients')
-      .select('messages!inner(thread_id, message_type)')
-      .eq('recipient_id', person.id)
-      .eq('messages.message_type', 'message')
-      .order('created_at', { ascending: false })
-      .limit(1)
-    const nested = userHistory?.[0]?.messages
-    const firstMessage = Array.isArray(nested) ? nested[0] : nested
-    if (firstMessage?.thread_id) {
-      setActiveThreadId(firstMessage.thread_id)
-      const { data } = await supabase.rpc('get_admin_conversation', { target_thread_id: firstMessage.thread_id })
-      setConversation(data ?? [])
-    } else {
-      setActiveThreadId(null)
-      setConversation([])
+    setAdminReply('')
+    const { error: openedError } = await supabase.rpc('mark_thread_opened', { target_thread_id: chat.thread_id })
+    if (!openedError) {
+      void queryClient.invalidateQueries({ queryKey: ['unread-message-count'] })
+      void refetchChats()
     }
+    const { data, error } = await supabase.rpc('get_admin_conversation', { target_thread_id: chat.thread_id })
+    setConversation(error ? [] : ((data ?? []) as ConversationItem[]))
     setConversationLoading(false)
   }
 
   async function sendAdminReply() {
-    if (!selected || !adminReply.trim() || conversation.length === 0) return
-    const latest = history.find((item) => item.messages?.thread_id === activeThreadId)
-    const threadId = activeThreadId
-    if (!threadId) return
-    const subject = latest?.messages?.message_threads?.subject || 'Новое сообщение'
+    if (!activeChat || !adminReply.trim() || isSending) return
+    setIsSending(true)
     const { error } = await supabase.functions.invoke('send-push-notification', {
       body: {
-        userId: selected.id,
-        title: subject,
+        userIds: activeChat.participant_ids,
+        title: activeChat.subject || (activeChat.is_group ? 'Групповой чат' : 'Переписка'),
         message: adminReply.trim(),
         messageType: 'message',
         allowReply: true,
-        threadId,
+        threadId: activeChat.thread_id,
       },
     })
-    if (error) { setToast(error.message); return }
+    setIsSending(false)
+    if (error) {
+      setToast(error.message)
+      return
+    }
     setAdminReply('')
-    await openHistory(selected)
+    await openChat(activeChat)
+    await refetchChats()
   }
 
-  function openSend(person: { id: string; full_name: string | null }) {
+  function openNotificationSend(person: { id: string; full_name: string | null }) {
     setSendTo(person)
     setTitle('')
     setBody('')
     setSendError(null)
   }
 
-  async function handleSend(event: FormEvent<HTMLFormElement>) {
+  async function handleNotificationSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!sendTo || isSending) return
-     if (!title.trim() || !body.trim()) {
-      setSendError('Заполните заголовок и текст уведомления.')
-      return
-    }
-
+    if (!sendTo || isSending || !title.trim() || !body.trim()) return
     setIsSending(true)
     setSendError(null)
     const { error } = await supabase.functions.invoke('send-push-notification', {
@@ -97,108 +143,237 @@ export function AdminMessagesPage() {
         userId: sendTo.id,
         title: title.trim(),
         message: body.trim(),
-        messageType: tab,
-        allowReply: tab === 'message',
+        messageType: 'notification',
+        allowReply: false,
       },
     })
     setIsSending(false)
-
     if (error) {
       setSendError(error.message || 'Не удалось отправить уведомление.')
       return
     }
-
     setSendTo(null)
     setTitle('')
     setBody('')
-    setToast(tab === 'message' ? 'Сообщение отправлено. Пользователь может ответить.' : 'Уведомление отправлено и сохранено в истории.')
+    setToast('Уведомление отправлено и сохранено в истории.')
   }
 
+  function toggleNewChatUser(userId: string) {
+    if (newChatMode === 'personal') {
+      setNewChatUsers([userId])
+      return
+    }
+    setNewChatUsers((current) => current.includes(userId)
+      ? current.filter((id) => id !== userId)
+      : [...current, userId])
+  }
+
+  async function createChat(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const minUsers = newChatMode === 'group' ? 2 : 1
+    if (newChatUsers.length < minUsers || !newChatTitle.trim() || !newChatBody.trim()) {
+      setNewChatError(newChatMode === 'group'
+        ? 'Выберите минимум двух участников и заполните название и первое сообщение.'
+        : 'Выберите пользователя и заполните название и первое сообщение.')
+      return
+    }
+
+    setCreatingChat(true)
+    setNewChatError(null)
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userIds: newChatUsers,
+        title: newChatTitle.trim(),
+        message: newChatBody.trim(),
+        messageType: 'message',
+        allowReply: true,
+        isGroup: newChatMode === 'group',
+      },
+    })
+    setCreatingChat(false)
+
+    if (error) {
+      setNewChatError(error.message || 'Не удалось создать чат.')
+      return
+    }
+
+    setNewChatOpen(false)
+    setNewChatUsers([])
+    setNewChatTitle('')
+    setNewChatBody('')
+    await refetchChats()
+  }
+
+  const filteredNotificationHistory = notificationHistory.filter((item) => item.messages?.message_type === 'notification')
+
   return <div className="space-y-6">
-    <h1 className="text-2xl font-bold text-primary">Сообщения</h1>
-    <div className="flex gap-2">
-      <Button variant={tab === 'notification' ? 'primary' : 'outline'} onClick={() => { setTab('notification'); setSelected(null) }}>Уведомления</Button>
-      <Button variant={tab === 'message' ? 'primary' : 'outline'} onClick={() => { setTab('message'); setSelected(null) }}>Переписка</Button>
+    <div className="flex items-center justify-between gap-3">
+      <h1 className="text-2xl font-bold text-primary">Сообщения</h1>
+      {tab === 'message' ? <Button size="sm" onClick={() => {
+        setNewChatMode('personal')
+        setNewChatUsers([])
+        setNewChatTitle('')
+        setNewChatBody('')
+        setNewChatError(null)
+        setNewChatOpen(true)
+      }}><Plus className="mr-1.5 h-4 w-4" />Новый чат</Button> : null}
     </div>
-    <Card>
-      <CardHeader><CardTitle>{tab === 'notification' ? 'Получатели уведомлений' : 'Получатели сообщений'}</CardTitle></CardHeader>
+
+    <div className="flex gap-2">
+      <Button variant={tab === 'notification' ? 'primary' : 'outline'} onClick={() => changeTab('notification')}>Уведомления</Button>
+      <Button variant={tab === 'message' ? 'primary' : 'outline'} onClick={() => changeTab('message')}>Переписка</Button>
+    </div>
+
+    {tab === 'notification' ? <Card>
+      <CardHeader><CardTitle>Получатели уведомлений</CardTitle></CardHeader>
       <CardContent>
-        {isLoading || usersLoading ? <p>Загрузка...</p> :
+        {notificationRecipientsLoading || usersLoading ? <p>Загрузка...</p> :
           <div className="divide-y divide-border">
-            {recipients.map((person) =>
-            <div key={person.id} className="flex items-center gap-3 py-3">
-              <button onClick={() => void openHistory(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+            {notificationRecipients.map((person) => <div key={person.id} className="flex items-center gap-3 py-3">
+              <button onClick={() => setSelectedNotificationUser(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
                 <span className="truncate font-medium">{person.full_name || person.id}</span>
                 <span className="shrink-0 text-sm text-muted-foreground">{new Date(person.last_at).toLocaleString('ru-RU')}</span>
               </button>
-              <Button size="sm" variant="outline" onClick={() => openSend(person)}>
+              <Button size="sm" variant="outline" onClick={() => openNotificationSend(person)}>
                 <Send className="mr-1.5 h-4 w-4" />Отправить
               </Button>
-            </div>
-          )}
-          {availableUsers.map((person) => (
-            <div key={person.id} className="flex items-center gap-3 py-3">
-              <div className="min-w-0 flex-1"><span className="truncate font-medium">{person.full_name || person.id}</span><span className="ml-2 text-sm text-muted-foreground">ещё не отправлялось</span></div>
-              <Button size="sm" variant="outline" onClick={() => openSend(person)}>
-                <Send className="mr-1.5 h-4 w-4" />Отправить
-              </Button>
-            </div>
-          ))}
-          {recipients.length === 0 && availableUsers.length === 0 ? <p className="py-3 text-muted-foreground">Нет доступных получателей.</p> : null}
+            </div>)}
+            {availableUsers.filter((person) => !notificationRecipients.some((recipient) => recipient.id === person.id)).map((person) => (
+              <div key={person.id} className="flex items-center gap-3 py-3">
+                <div className="min-w-0 flex-1"><span className="truncate font-medium">{person.full_name || person.id}</span><span className="ml-2 text-sm text-muted-foreground">ещё не отправлялось</span></div>
+                <Button size="sm" variant="outline" onClick={() => openNotificationSend(person)}>
+                  <Send className="mr-1.5 h-4 w-4" />Отправить
+                </Button>
+              </div>
+            ))}
           </div>}
       </CardContent>
-    </Card>
+    </Card> : <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Чаты</CardTitle>
+          <span className="text-sm text-muted-foreground">{chats.length}</span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {chatsLoading ? <p>Загрузка...</p> : chats.length === 0 ? <div className="py-8 text-center text-muted-foreground">
+          <MessageCircle className="mx-auto mb-2 h-7 w-7" />
+          <p>Переписок пока нет.</p>
+          <p className="mt-1 text-sm">Нажмите «Новый чат», чтобы начать переписку.</p>
+        </div> : <div className="divide-y divide-border">
+          {chats.map((chat) => <button key={chat.thread_id} onClick={() => void openChat(chat)} className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
+              {chat.is_group ? <Users className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <strong className="truncate">{chat.is_group ? (chat.subject || 'Групповой чат') : (chat.participant_names[0] || chat.subject || 'Переписка')}</strong>
+                <span className="shrink-0 text-xs text-muted-foreground">{chat.last_at ? new Date(chat.last_at).toLocaleString('ru-RU') : ''}</span>
+              </div>
+              {chat.is_group ? <p className="truncate text-xs text-muted-foreground">{chat.participant_names.join(', ')}</p> : null}
+              <p className="mt-1 truncate text-sm text-muted-foreground">{chat.last_message || 'Нет сообщений'}</p>
+            </div>
+            {chat.unread_count > 0 ? <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white">{chat.unread_count > 9 ? '9+' : chat.unread_count}</span> : null}
+          </button>)}
+        </div>}
+      </CardContent>
+    </Card>}
+
     {sendTo ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={handleSend} className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
+      <form onSubmit={handleNotificationSend} className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
-          <div><h2 className="text-xl font-bold">{tab === 'notification' ? 'Отправить уведомление' : 'Отправить сообщение'}</h2><p className="text-muted-foreground">{sendTo.full_name}</p></div>
+          <div><h2 className="text-xl font-bold">Отправить уведомление</h2><p className="text-muted-foreground">{sendTo.full_name}</p></div>
           <button type="button" onClick={() => !isSending && setSendTo(null)}><X className="h-5 w-5" /></button>
         </div>
         <div className="mt-4 space-y-3">
           <label className="block text-sm font-medium">Заголовок<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} required /></label>
-          {tab === 'message' ? <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">На это сообщение пользователь сможет ответить в приложении.</p> : null}
-          <label className="block text-sm font-medium">Текст {tab === 'notification' ? 'уведомления' : 'сообщения'}<textarea className="mt-1 min-h-32 w-full rounded-lg border border-border px-3 py-2" value={body} onChange={(e) => setBody(e.target.value)} required /></label>
+          <label className="block text-sm font-medium">Текст уведомления<textarea className="mt-1 min-h-32 w-full rounded-lg border border-border px-3 py-2" value={body} onChange={(e) => setBody(e.target.value)} required /></label>
         </div>
         {sendError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{sendError}</p> : null}
         <div className="mt-5 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setSendTo(null)} disabled={isSending}>Отмена</Button><Button type="submit" isLoading={isSending}>Отправить</Button></div>
       </form>
     </div> : null}
+
+    {newChatOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form onSubmit={createChat} className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div><h2 className="text-xl font-bold">Новый чат</h2><p className="text-sm text-muted-foreground">Личная или групповая переписка</p></div>
+          <button type="button" onClick={() => !creatingChat && setNewChatOpen(false)}><X className="h-5 w-5" /></button>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <Button type="button" size="sm" variant={newChatMode === 'personal' ? 'primary' : 'outline'} onClick={() => { setNewChatMode('personal'); setNewChatUsers([]) }}>Личный</Button>
+          <Button type="button" size="sm" variant={newChatMode === 'group' ? 'primary' : 'outline'} onClick={() => { setNewChatMode('group'); setNewChatUsers([]) }}>Групповой</Button>
+        </div>
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
+          {availableUsers.map((person) => {
+            const checked = newChatUsers.includes(person.id)
+            return <label key={person.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-slate-50">
+              <input
+                type={newChatMode === 'personal' ? 'radio' : 'checkbox'}
+                name="chat-user"
+                checked={checked}
+                onChange={() => toggleNewChatUser(person.id)}
+              />
+              <span>{person.full_name || person.email || person.id}</span>
+            </label>
+          })}
+        </div>
+        <div className="mt-4 space-y-3">
+          <label className="block text-sm font-medium">{newChatMode === 'group' ? 'Название группы' : 'Тема чата'}<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={newChatTitle} onChange={(e) => setNewChatTitle(e.target.value)} required /></label>
+          <label className="block text-sm font-medium">Первое сообщение<textarea className="mt-1 min-h-24 w-full rounded-lg border border-border px-3 py-2" value={newChatBody} onChange={(e) => setNewChatBody(e.target.value)} required /></label>
+        </div>
+        {newChatError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{newChatError}</p> : null}
+        <div className="mt-5 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setNewChatOpen(false)} disabled={creatingChat}>Отмена</Button><Button type="submit" isLoading={creatingChat}>Создать чат</Button></div>
+      </form>
+    </div> : null}
+
     {toast ? <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm shadow-lg">{toast}<button className="ml-3" onClick={() => setToast(null)}><X className="h-4 w-4" /></button></div> : null}
-    {selected ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+
+    {selectedNotificationUser ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
         <div className="mb-4 flex justify-between gap-4">
-          <div><h2 className="text-xl font-bold">{tab === 'notification' ? 'Уведомления' : 'Переписка'}</h2><p className="text-muted-foreground">{selected.full_name}</p></div>
-          <button onClick={() => setSelected(null)}><X className="h-5 w-5" /></button>
+          <div><h2 className="text-xl font-bold">Уведомления</h2><p className="text-muted-foreground">{selectedNotificationUser.full_name}</p></div>
+          <button onClick={() => setSelectedNotificationUser(null)}><X className="h-5 w-5" /></button>
         </div>
-        {tab === 'message' && conversationLoading ? <p>Загрузка переписки...</p> : tab === 'message' && conversation.length > 0 ?
-          <div className="overflow-hidden rounded-xl border border-border">
-            <div className="max-h-[58vh] space-y-2 overflow-y-auto bg-slate-50 p-4">
-              {conversation.map((item) => {
-                const mine = item.sender_id === user?.id
-                return <div key={item.message_id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[82%] rounded-2xl px-4 py-2 shadow-sm ${mine ? 'bg-primary text-white' : 'border border-border bg-white text-primary'}`}>
-                    <p className="whitespace-pre-wrap text-sm">{item.body}</p>
-                    <div className={`mt-1 flex gap-2 text-[11px] ${mine ? 'justify-end text-white/70' : 'text-muted-foreground'}`}>
-                      {!mine ? <span>{item.sender_name || selected.full_name || 'Пользователь'}</span> : null}
-                      <span>{new Date(item.created_at).toLocaleString('ru-RU')}</span>
-                    </div>
-                  </div>
-                </div>
-              })}
-            </div>
-            <div className="flex items-end gap-2 border-t border-border bg-white p-3">
-              <textarea className="min-h-11 max-h-32 flex-1 resize-y rounded-xl border border-border px-3 py-2" value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Сообщение..." />
-              <Button onClick={() => void sendAdminReply()} disabled={!adminReply.trim()}>Отправить</Button>
-            </div>
-          </div> : historyLoading ? <p>Загрузка...</p> : filtered.length === 0 ? <p>История пуста.</p> :
-          <div className="space-y-3">{filtered.map((item) => <div key={item.id} className="rounded-xl border border-border p-4">
+        {notificationHistoryLoading ? <p>Загрузка...</p> : filteredNotificationHistory.length === 0 ? <p>История пуста.</p> :
+          <div className="space-y-3">{filteredNotificationHistory.map((item) => <div key={item.id} className="rounded-xl border border-border p-4">
             <div className="mb-2 flex justify-between gap-3">
-              <strong>{item.messages?.message_threads?.subject || (tab === 'notification' ? 'Уведомление' : 'Сообщение')}</strong>
+              <strong>{item.messages?.message_threads?.subject || 'Уведомление'}</strong>
               <Badge variant={item.delivery_status === 'error' ? 'danger' : 'secondary'}>{item.opened_at ? 'Прочитано' : item.delivery_status === 'sending' ? 'Отправляется' : item.delivery_status === 'sent' ? 'Отправлено' : item.delivery_status === 'delivered' ? 'Доставлено' : 'Ошибка'}</Badge>
             </div>
             <p className="whitespace-pre-wrap">{item.messages?.body}</p>
             <p className="mt-2 text-sm text-muted-foreground">{new Date(item.created_at).toLocaleString('ru-RU')}</p>
           </div>)}</div>}
+      </div>
+    </div> : null}
+
+    {activeChat ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4">
+      <div className="flex h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="truncate font-semibold text-primary">{activeChat.is_group ? (activeChat.subject || 'Групповой чат') : (activeChat.participant_names[0] || activeChat.subject || 'Переписка')}</h2>
+            <p className="truncate text-xs text-muted-foreground">{activeChat.is_group ? activeChat.participant_names.join(', ') : 'Личная переписка'}</p>
+          </div>
+          <button onClick={() => setActiveChat(null)} aria-label="Закрыть"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="flex-1 space-y-2 overflow-y-auto bg-slate-50 p-4">
+          {conversationLoading ? <p className="text-sm text-muted-foreground">Загрузка переписки...</p> : conversation.map((item) => {
+            const mine = item.sender_id === user?.id
+            return <div key={item.message_id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[82%] rounded-2xl px-4 py-2 shadow-sm ${mine ? 'bg-primary text-white' : 'border border-border bg-white text-primary'}`}>
+                {!mine && activeChat.is_group ? <p className="mb-1 text-[11px] font-semibold text-muted-foreground">{item.sender_name || 'Пользователь'}</p> : null}
+                <p className="whitespace-pre-wrap text-sm">{item.body}</p>
+                <p className={`mt-1 text-[11px] ${mine ? 'text-white/70' : 'text-muted-foreground'}`}>{new Date(item.created_at).toLocaleString('ru-RU')}</p>
+              </div>
+            </div>
+          })}
+        </div>
+        <div className="border-t border-border bg-white p-3">
+          <div className="flex items-end gap-2">
+            <textarea className="min-h-11 max-h-32 flex-1 resize-y rounded-xl border border-border px-3 py-2" value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Сообщение..." />
+            <Button onClick={() => void sendAdminReply()} isLoading={isSending} disabled={!adminReply.trim()}>Отправить</Button>
+          </div>
+        </div>
       </div>
     </div> : null}
   </div>
