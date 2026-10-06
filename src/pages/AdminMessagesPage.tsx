@@ -21,6 +21,17 @@ interface ChatThread {
   unread_count: number
 }
 
+interface NotificationThread {
+  thread_id: string
+  subject: string | null
+  is_group: boolean
+  recipient_ids: string[]
+  recipient_names: string[]
+  body: string
+  created_at: string
+  recipient_count: number
+}
+
 interface ConversationItem {
   message_id: string
   sender_id: string | null
@@ -34,6 +45,7 @@ export function AdminMessagesPage() {
   const initialTab = new URLSearchParams(window.location.search).get('tab') === 'message' ? 'message' : 'notification'
   const [tab, setTab] = useState<Tab>(initialTab)
   const [selectedNotificationUser, setSelectedNotificationUser] = useState<{ id: string; full_name: string | null } | null>(null)
+  const [activeNotification, setActiveNotification] = useState<NotificationThread | null>(null)
   const [sendTo, setSendTo] = useState<{ id: string; full_name: string | null } | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -68,6 +80,22 @@ export function AdminMessagesPage() {
   const { data: notificationRecipients = [], isLoading: notificationRecipientsLoading } = useAdminMessageRecipients('notification')
   const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
   const { data: notificationHistory = [], isLoading: notificationHistoryLoading } = useAdminUserMessageHistory(selectedNotificationUser?.id)
+
+  const { data: notificationThreads = [], isLoading: notificationThreadsLoading, refetch: refetchNotificationThreads } = useQuery({
+    queryKey: ['admin-notification-threads'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_admin_notification_threads')
+      if (error) throw error
+      return ((data ?? []) as NotificationThread[]).map((item) => ({
+        ...item,
+        recipient_ids: item.recipient_ids ?? [],
+        recipient_names: item.recipient_names ?? [],
+        recipient_count: Number(item.recipient_count ?? 0),
+      }))
+    },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
 
   const { data: chats = [], isLoading: chatsLoading, refetch: refetchChats } = useQuery({
     queryKey: ['admin-chat-threads'],
@@ -192,6 +220,7 @@ export function AdminMessagesPage() {
         message: body.trim(),
         messageType: 'notification',
         allowReply: false,
+        isGroup: newNotificationMode === 'group',
       },
     })
     setIsSending(false)
@@ -250,6 +279,7 @@ export function AdminMessagesPage() {
     setNewNotificationBody('')
     setToast('Уведомление отправлено.')
     void queryClient.invalidateQueries({ queryKey: ['admin-message-recipients', 'notification'] })
+    await refetchNotificationThreads()
   }
 
   function toggleNewChatUser(userId: string) {
@@ -328,21 +358,36 @@ export function AdminMessagesPage() {
     </div>
 
     {tab === 'notification' ? <Card>
-      <CardHeader><CardTitle>Получатели уведомлений</CardTitle></CardHeader>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Уведомления</CardTitle>
+          <span className="text-sm text-muted-foreground">{notificationThreads.length}</span>
+        </div>
+      </CardHeader>
       <CardContent>
-        {notificationRecipientsLoading || usersLoading ? <p>Загрузка...</p> :
-          <div className="divide-y divide-border">
-            {sortedNotificationRecipients.map((person) => <div key={person.id} className="flex items-center gap-3 py-3">
-              <button onClick={() => setSelectedNotificationUser(person)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
-                <span className="truncate font-medium">{person.full_name || person.id}</span>
-                <span className="shrink-0 text-sm text-muted-foreground">{new Date(person.last_at).toLocaleString('ru-RU')}</span>
-              </button>
-              <Button size="sm" variant="outline" onClick={() => openNotificationSend(person)}>
-                <Send className="mr-1.5 h-4 w-4" />Отправить
-              </Button>
-            </div>)}
-            {sortedNotificationRecipients.length === 0 ? <p className="py-6 text-center text-muted-foreground">Уведомлений пока нет. Нажмите «Новое уведомление».</p> : null}
-          </div>}
+        {notificationThreadsLoading ? <p>Загрузка...</p> : notificationThreads.length === 0 ? <div className="py-8 text-center text-muted-foreground">
+          <p>Уведомлений пока нет.</p>
+          <p className="mt-1 text-sm">Нажмите «Новое уведомление», чтобы отправить первое.</p>
+        </div> : <div className="divide-y divide-border">
+          {notificationThreads.map((notification) => <button
+            key={notification.thread_id}
+            onClick={() => setActiveNotification(notification)}
+            className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
+              {notification.is_group ? <Users className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <strong className="truncate">{notification.is_group ? 'Групповое уведомление' : (notification.recipient_names[0] || 'Личное уведомление')}</strong>
+                <span className="shrink-0 text-xs text-muted-foreground">{new Date(notification.created_at).toLocaleString('ru-RU')}</span>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">{notification.subject || 'Без заголовка'}</p>
+              <p className="mt-1 truncate text-sm text-muted-foreground">{notification.body}</p>
+            </div>
+            {notification.is_group ? <Badge variant="secondary">{notification.recipient_count}</Badge> : null}
+          </button>)}
+        </div>}
       </CardContent>
     </Card> : <Card>
       <CardHeader>
@@ -374,6 +419,28 @@ export function AdminMessagesPage() {
         </div>}
       </CardContent>
     </Card>}
+
+    {activeNotification ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">{activeNotification.is_group ? 'Групповое уведомление' : 'Уведомление'}</h2>
+            <p className="text-sm text-muted-foreground">{activeNotification.subject || 'Без заголовка'}</p>
+          </div>
+          <button onClick={() => setActiveNotification(null)}><X className="h-5 w-5" /></button>
+        </div>
+        {activeNotification.is_group ? <div className="mt-4 rounded-xl border border-border p-4">
+          <p className="mb-2 text-sm font-semibold">Получатели ({activeNotification.recipient_count})</p>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            {activeNotification.recipient_names.map((name) => <div key={name}>{name}</div>)}
+          </div>
+        </div> : <p className="mt-4 text-sm"><span className="font-medium">Получатель:</span> {activeNotification.recipient_names[0] || 'Не указан'}</p>}
+        <div className="mt-4 rounded-xl border border-border p-4">
+          <p className="whitespace-pre-wrap">{activeNotification.body}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{new Date(activeNotification.created_at).toLocaleString('ru-RU')}</p>
+        </div>
+      </div>
+    </div> : null}
 
     {sendTo ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <form onSubmit={handleNotificationSend} className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
