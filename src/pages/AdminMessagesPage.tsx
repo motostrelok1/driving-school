@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAdminMessageRecipients, useAdminUserMessageHistory, useAllUsers } from '@/features/admin/useAdmin'
+import { useAdminUserMessageHistory, useAllUsers } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -77,8 +77,7 @@ export function AdminMessagesPage() {
 
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const { data: notificationRecipients = [], isLoading: notificationRecipientsLoading } = useAdminMessageRecipients('notification')
-  const { data: allUsers = [], isLoading: usersLoading } = useAllUsers()
+  const { data: allUsers = [] } = useAllUsers()
   const { data: notificationHistory = [], isLoading: notificationHistoryLoading } = useAdminUserMessageHistory(selectedNotificationUser?.id)
 
   const { data: notificationThreads = [], isLoading: notificationThreadsLoading, refetch: refetchNotificationThreads } = useQuery({
@@ -126,9 +125,6 @@ export function AdminMessagesPage() {
     (person.full_name || person.email || '').toLocaleLowerCase('ru').includes(newNotificationSearch.trim().toLocaleLowerCase('ru'))
   )
 
-  const sortedNotificationRecipients = [...notificationRecipients].sort((a, b) =>
-    (a.full_name || '').localeCompare(b.full_name || '', 'ru')
-  )
 
   function changeTab(next: Tab) {
     setTab(next)
@@ -201,12 +197,6 @@ export function AdminMessagesPage() {
     await refetchChats()
   }
 
-  function openNotificationSend(person: { id: string; full_name: string | null }) {
-    setSendTo(person)
-    setTitle('')
-    setBody('')
-    setSendError(null)
-  }
 
   async function handleNotificationSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
