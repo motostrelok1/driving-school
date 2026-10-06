@@ -154,12 +154,12 @@ Deno.serve(async (req) => {
       let notificationId: string | null = null;
 
       if (adminRecipients.length > 0) {
-        const result = await sendPush(adminRecipients, title, "/admin/messages?tab=message", savedReply.id);
+        const result = await sendPush(adminRecipients, title, `/admin/messages?tab=message&thread=${threadId}`, savedReply.id);
         pushFailed ||= !result.ok;
         notificationId = result.id ?? notificationId;
       }
       if (studentRecipients.length > 0) {
-        const result = await sendPush(studentRecipients, title, "/student/messages?tab=message", savedReply.id);
+        const result = await sendPush(studentRecipients, title, `/student/messages?tab=message&thread=${threadId}`, savedReply.id);
         pushFailed ||= !result.ok;
         notificationId = result.id ?? notificationId;
       }
@@ -264,7 +264,7 @@ Deno.serve(async (req) => {
     if (recipientError) return jsonResponse({ error: "Failed to save message recipients" }, 500);
 
     const path = messageType === "message"
-      ? "/student/messages?tab=message"
+      ? `/student/messages?tab=message&thread=${activeThreadId}`
       : "/student/messages";
     const pushResult = await sendPush(recipientIds, title, path, savedMessage.id);
 
