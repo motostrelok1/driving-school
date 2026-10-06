@@ -19,7 +19,7 @@ AS $$
   SELECT
     mt.id,
     mt.subject,
-    mt.is_group,
+    (mt.is_group OR COUNT(DISTINCT mr.recipient_id) > 1) AS is_group,
     ARRAY_REMOVE(ARRAY_AGG(DISTINCT mr.recipient_id), NULL),
     ARRAY_REMOVE(ARRAY_AGG(DISTINCT p.full_name ORDER BY p.full_name), NULL),
     MAX(m.body) FILTER (WHERE m.message_type = 'notification'),
