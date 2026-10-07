@@ -159,6 +159,8 @@ export function AdminMessagesPage() {
     refetchInterval: 5000,
   })
 
+  const visibleChats = chats.filter((chat) => chat.participant_ids.length > 0)
+
   const availableUsers = allUsers
     .filter((person) => person.role !== 'admin')
     .sort((a, b) => (a.full_name || a.email || '').localeCompare(b.full_name || b.email || '', 'ru'))
@@ -288,18 +290,18 @@ export function AdminMessagesPage() {
   }
 
   useEffect(() => {
-    if (tab !== 'message' || chats.length === 0 || activeChat) return
+    if (tab !== 'message' || visibleChats.length === 0 || activeChat) return
     const threadId = new URLSearchParams(window.location.search).get('thread')
     if (!threadId) return
 
-    const target = chats.find((chat) => chat.thread_id === threadId)
+    const target = visibleChats.find((chat) => chat.thread_id === threadId)
     if (!target) return
 
     void openChat(target)
     const url = new URL(window.location.href)
     url.searchParams.delete('thread')
     window.history.replaceState({}, '', url)
-  }, [tab, chats, activeChat])
+  }, [tab, visibleChats, activeChat])
 
   async function openChat(chat: ChatThread) {
     setActiveChat(chat)
@@ -649,16 +651,16 @@ export function AdminMessagesPage() {
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <CardTitle>Чаты</CardTitle>
-          <span className="text-sm text-muted-foreground">{chats.length}</span>
+          <span className="text-sm text-muted-foreground">{visibleChats.length}</span>
         </div>
       </CardHeader>
       <CardContent>
-        {chatsLoading ? <p>Загрузка...</p> : chats.length === 0 ? <div className="py-8 text-center text-muted-foreground">
+        {chatsLoading ? <p>Загрузка...</p> : visibleChats.length === 0 ? <div className="py-8 text-center text-muted-foreground">
           <MessageCircle className="mx-auto mb-2 h-7 w-7" />
           <p>Переписок пока нет.</p>
           <p className="mt-1 text-sm">Нажмите «Новый чат», чтобы начать переписку.</p>
         </div> : <div className="divide-y divide-border">
-          {chats.map((chat) => <button key={chat.thread_id} onClick={() => void openChat(chat)} className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50">
+          {visibleChats.map((chat) => <button key={chat.thread_id} onClick={() => void openChat(chat)} className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
               {chat.is_group ? <Users className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
             </div>

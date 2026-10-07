@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
         .insert({
           subject: title,
           created_by: user.id,
-          is_group: body.isGroup === true || requestedIds.length > 1,
+          is_group: messageType === "message" && (body.isGroup === true || requestedIds.length > 1),
         })
         .select("id")
         .single();
