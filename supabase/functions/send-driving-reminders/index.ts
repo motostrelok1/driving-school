@@ -62,17 +62,36 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const { data: existing } = await supabase
+      const { data: reminderClaim, error: claimError } = await supabase
         .from("driving_lesson_reminders")
+        .insert({
+          slot_id: slot.id,
+          student_id: studentId,
+          reminder_type: "24h",
+        })
         .select("id")
-        .eq("slot_id", slot.id)
-        .eq("reminder_type", "24h")
         .maybeSingle();
 
-      if (existing) {
+      if (claimError) {
+        if (claimError.code === "23505") {
+          skipped += 1;
+          continue;
+        }
+        failures.push({ slotId: slot.id, error: claimError.message });
+        continue;
+      }
+
+      if (!reminderClaim) {
         skipped += 1;
         continue;
       }
+
+      const releaseClaim = async () => {
+        await supabase
+          .from("driving_lesson_reminders")
+          .delete()
+          .eq("id", reminderClaim.id);
+      };
 
       const start = new Date(slot.start_at);
       const instructorName =
@@ -93,6 +112,7 @@ Deno.serve(async (req) => {
         .single();
 
       if (threadError || !thread) {
+        await releaseClaim();
         failures.push({ slotId: slot.id, error: threadError?.message ?? "Failed to create thread" });
         continue;
       }
@@ -110,6 +130,7 @@ Deno.serve(async (req) => {
         .single();
 
       if (messageError || !savedMessage) {
+        await releaseClaim();
         failures.push({ slotId: slot.id, error: messageError?.message ?? "Failed to save message" });
         await supabase.from("message_threads").delete().eq("id", thread.id);
         continue;
@@ -124,6 +145,7 @@ Deno.serve(async (req) => {
         });
 
       if (recipientError) {
+        await releaseClaim();
         failures.push({ slotId: slot.id, error: recipientError.message });
         continue;
       }
@@ -161,6 +183,7 @@ Deno.serve(async (req) => {
           })
           .eq("message_id", savedMessage.id);
 
+        await releaseClaim();
         failures.push({
           slotId: slot.id,
           error: typeof result === "object" ? JSON.stringify(result) : String(result),
@@ -178,18 +201,10 @@ Deno.serve(async (req) => {
         })
         .eq("message_id", savedMessage.id);
 
-      const { error: reminderError } = await supabase
+      await supabase
         .from("driving_lesson_reminders")
-        .insert({
-          slot_id: slot.id,
-          student_id: studentId,
-          reminder_type: "24h",
-        });
-
-      if (reminderError) {
-        failures.push({ slotId: slot.id, error: reminderError.message });
-        continue;
-      }
+        .update({ sent_at: new Date().toISOString() })
+        .eq("id", reminderClaim.id);
 
       sent += 1;
     }
