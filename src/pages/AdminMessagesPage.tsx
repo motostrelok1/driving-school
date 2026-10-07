@@ -328,6 +328,19 @@ export function AdminMessagesPage() {
     setToast('Уведомление отправлено и сохранено в истории.')
   }
 
+  function selectAudience(audience: 'students' | 'instructors' | 'all', setter: (ids: string[]) => void) {
+    const ids = availableUsers
+      .filter((person) =>
+        audience === 'all'
+          ? true
+          : audience === 'students'
+            ? person.role === 'student'
+            : person.role === 'instructor'
+      )
+      .map((person) => person.id)
+    setter(ids)
+  }
+
   function toggleNewNotificationUser(userId: string) {
     if (newNotificationMode === 'personal') {
       setNewNotificationUsers([userId])
@@ -583,6 +596,12 @@ export function AdminMessagesPage() {
           <Button type="button" size="sm" variant={newNotificationMode === 'personal' ? 'primary' : 'outline'} onClick={() => { setNewNotificationMode('personal'); setNewNotificationUsers([]) }}>Личное</Button>
           <Button type="button" size="sm" variant={newNotificationMode === 'group' ? 'primary' : 'outline'} onClick={() => { setNewNotificationMode('group'); setNewNotificationUsers([]) }}>Групповое</Button>
         </div>
+        {newNotificationMode === 'group' ? <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => selectAudience('students', setNewNotificationUsers)}>Все ученики</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => selectAudience('instructors', setNewNotificationUsers)}>Все инструкторы</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => selectAudience('all', setNewNotificationUsers)}>Все пользователи</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setNewNotificationUsers([])}>Снять выбор</Button>
+        </div> : null}
         <input
           className="mt-4 w-full rounded-lg border border-border px-3 py-2"
           value={newNotificationSearch}
@@ -622,6 +641,12 @@ export function AdminMessagesPage() {
           <Button type="button" size="sm" variant={newChatMode === 'personal' ? 'primary' : 'outline'} onClick={() => { setNewChatMode('personal'); setNewChatUsers([]) }}>Личный</Button>
           <Button type="button" size="sm" variant={newChatMode === 'group' ? 'primary' : 'outline'} onClick={() => { setNewChatMode('group'); setNewChatUsers([]) }}>Групповой</Button>
         </div>
+        {newChatMode === 'group' ? <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => selectAudience('students', setNewChatUsers)}>Все ученики</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => selectAudience('instructors', setNewChatUsers)}>Все инструкторы</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => selectAudience('all', setNewChatUsers)}>Все пользователи</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setNewChatUsers([])}>Снять выбор</Button>
+        </div> : null}
         <input
           className="mt-4 w-full rounded-lg border border-border px-3 py-2"
           value={newChatSearch}
