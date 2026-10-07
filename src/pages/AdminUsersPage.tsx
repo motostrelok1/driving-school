@@ -26,6 +26,7 @@ import {
   KeyRound,
   MessageSquare,
   History as HistoryIcon,
+  FileText,
   Pencil,
   Plus,
   Search,
@@ -129,6 +130,27 @@ export function AdminUsersPage() {
   const [messageError, setMessageError] = useState<string | null>(null)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
   const [userMessageHistory, setUserMessageHistory] = useState<Profile | null>(null)
+  const [userToDocuments, setUserToDocuments] = useState<Profile | null>(null)
+  const [documentsTab, setDocumentsTab] = useState<'passport' | 'snils' | 'medical'>('passport')
+  const [documentForm, setDocumentForm] = useState({
+    passport_series: '',
+    passport_number: '',
+    passport_issued_by: '',
+    passport_issue_date: '',
+    passport_department_code: '',
+    passport_birth_place: '',
+    passport_registration_address: '',
+    snils_number: '',
+    snils_details: '',
+    medical_certificate_number: '',
+    medical_certificate_issue_date: '',
+    medical_certificate_valid_until: '',
+    medical_certificate_issuer: '',
+    medical_certificate_details: '',
+  })
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [documentsSaving, setDocumentsSaving] = useState(false)
+  const [documentsError, setDocumentsError] = useState<string | null>(null)
   const { data: selectedFinance } = useStudentFinance(userToEditFinance?.id)
   const { data: messageHistory, isLoading: isMessageHistoryLoading } = useAdminUserMessageHistory(userMessageHistory?.id)
 
@@ -410,6 +432,77 @@ export function AdminUsersPage() {
     setToastMessage('Уведомление отправлено и сохранено в истории.')
   }
 
+  async function openDocuments(user: Profile) {
+    setUserToDocuments(user)
+    setDocumentsTab('passport')
+    setDocumentsError(null)
+    setDocumentsLoading(true)
+
+    const { data, error } = await supabase
+      .from('student_documents')
+      .select('*')
+      .eq('student_id', user.id)
+      .maybeSingle()
+
+    setDocumentsLoading(false)
+
+    if (error) {
+      setDocumentsError(error.message)
+      return
+    }
+
+    setDocumentForm({
+      passport_series: data?.passport_series || '',
+      passport_number: data?.passport_number || '',
+      passport_issued_by: data?.passport_issued_by || '',
+      passport_issue_date: data?.passport_issue_date || '',
+      passport_department_code: data?.passport_department_code || '',
+      passport_birth_place: data?.passport_birth_place || '',
+      passport_registration_address: data?.passport_registration_address || '',
+      snils_number: data?.snils_number || '',
+      snils_details: data?.snils_details || '',
+      medical_certificate_number: data?.medical_certificate_number || '',
+      medical_certificate_issue_date: data?.medical_certificate_issue_date || '',
+      medical_certificate_valid_until: data?.medical_certificate_valid_until || '',
+      medical_certificate_issuer: data?.medical_certificate_issuer || '',
+      medical_certificate_details: data?.medical_certificate_details || '',
+    })
+  }
+
+  function closeDocuments() {
+    if (documentsSaving) return
+    setUserToDocuments(null)
+    setDocumentsError(null)
+  }
+
+  async function saveDocuments(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!userToDocuments) return
+    setDocumentsSaving(true)
+    setDocumentsError(null)
+
+    const payload = Object.fromEntries(
+      Object.entries(documentForm).map(([key, value]) => [key, value.trim() || null])
+    )
+
+    const { error } = await supabase
+      .from('student_documents')
+      .upsert({
+        student_id: userToDocuments.id,
+        ...payload,
+      }, { onConflict: 'student_id' })
+
+    setDocumentsSaving(false)
+
+    if (error) {
+      setDocumentsError(error.message)
+      return
+    }
+
+    setToastMessage('Документы пользователя сохранены.')
+    setUserToDocuments(null)
+  }
+
   function openFinanceEdit(user: Profile) {
     setUserToEditFinance(user)
     setContractAmount('')
@@ -619,6 +712,9 @@ export function AdminUsersPage() {
                           <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="История сообщений" title="История сообщений" onClick={() => setUserMessageHistory(user)}>
                             <HistoryIcon className="h-4 w-4" />
                           </Button>
+                          <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="Документы" title="Документы" onClick={() => void openDocuments(user)}>
+                            <FileText className="h-4 w-4" />
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -700,6 +796,63 @@ export function AdminUsersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {userToDocuments ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
+          <form onSubmit={saveDocuments} className="w-full max-w-2xl rounded-xl bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">Документы</h2>
+                <p className="text-sm text-muted-foreground">{userToDocuments.full_name}</p>
+              </div>
+              <button type="button" onClick={closeDocuments} aria-label="Закрыть"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant={documentsTab === 'passport' ? 'primary' : 'outline'} onClick={() => setDocumentsTab('passport')}>Паспорт</Button>
+              <Button type="button" size="sm" variant={documentsTab === 'snils' ? 'primary' : 'outline'} onClick={() => setDocumentsTab('snils')}>СНИЛС</Button>
+              <Button type="button" size="sm" variant={documentsTab === 'medical' ? 'primary' : 'outline'} onClick={() => setDocumentsTab('medical')}>Справка</Button>
+            </div>
+
+            {documentsLoading ? <p className="mt-6 text-sm text-muted-foreground">Загрузка...</p> : (
+              <div className="mt-4 space-y-3">
+                {documentsTab === 'passport' ? <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm font-medium">Серия<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_series} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_series: e.target.value }))} /></label>
+                    <label className="text-sm font-medium">Номер<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_number} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_number: e.target.value }))} /></label>
+                    <label className="text-sm font-medium">Дата выдачи<input type="date" className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_issue_date} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_issue_date: e.target.value }))} /></label>
+                    <label className="text-sm font-medium">Код подразделения<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_department_code} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_department_code: e.target.value }))} /></label>
+                  </div>
+                  <label className="block text-sm font-medium">Кем выдан<textarea className="mt-1 min-h-20 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_issued_by} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_issued_by: e.target.value }))} /></label>
+                  <label className="block text-sm font-medium">Место рождения<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_birth_place} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_birth_place: e.target.value }))} /></label>
+                  <label className="block text-sm font-medium">Адрес регистрации<textarea className="mt-1 min-h-20 w-full rounded-lg border border-border px-3 py-2" value={documentForm.passport_registration_address} onChange={(e) => setDocumentForm((v) => ({ ...v, passport_registration_address: e.target.value }))} /></label>
+                </> : null}
+
+                {documentsTab === 'snils' ? <>
+                  <label className="block text-sm font-medium">Номер СНИЛС<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.snils_number} onChange={(e) => setDocumentForm((v) => ({ ...v, snils_number: e.target.value }))} /></label>
+                  <label className="block text-sm font-medium">Дополнительные реквизиты<textarea className="mt-1 min-h-32 w-full rounded-lg border border-border px-3 py-2" value={documentForm.snils_details} onChange={(e) => setDocumentForm((v) => ({ ...v, snils_details: e.target.value }))} /></label>
+                </> : null}
+
+                {documentsTab === 'medical' ? <>
+                  <label className="block text-sm font-medium">Номер справки<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.medical_certificate_number} onChange={(e) => setDocumentForm((v) => ({ ...v, medical_certificate_number: e.target.value }))} /></label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm font-medium">Дата выдачи<input type="date" className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.medical_certificate_issue_date} onChange={(e) => setDocumentForm((v) => ({ ...v, medical_certificate_issue_date: e.target.value }))} /></label>
+                    <label className="text-sm font-medium">Действительна до<input type="date" className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.medical_certificate_valid_until} onChange={(e) => setDocumentForm((v) => ({ ...v, medical_certificate_valid_until: e.target.value }))} /></label>
+                  </div>
+                  <label className="block text-sm font-medium">Кем выдана<input className="mt-1 w-full rounded-lg border border-border px-3 py-2" value={documentForm.medical_certificate_issuer} onChange={(e) => setDocumentForm((v) => ({ ...v, medical_certificate_issuer: e.target.value }))} /></label>
+                  <label className="block text-sm font-medium">Дополнительные реквизиты<textarea className="mt-1 min-h-32 w-full rounded-lg border border-border px-3 py-2" value={documentForm.medical_certificate_details} onChange={(e) => setDocumentForm((v) => ({ ...v, medical_certificate_details: e.target.value }))} /></label>
+                </> : null}
+              </div>
+            )}
+
+            {documentsError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{documentsError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={closeDocuments} disabled={documentsSaving}>Отмена</Button>
+              <Button type="submit" isLoading={documentsSaving} disabled={documentsLoading}>Сохранить</Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
