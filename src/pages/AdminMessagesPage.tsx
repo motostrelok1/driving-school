@@ -656,6 +656,7 @@ export function AdminMessagesPage() {
                 setTitle('')
                 setBody('')
                 setSendError(null)
+                setSelectedNotificationUser(null)
               }}
             >
               <Send className="mr-1.5 h-4 w-4" />Отправить уведомление
