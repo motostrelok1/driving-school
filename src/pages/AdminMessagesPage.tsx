@@ -53,6 +53,12 @@ export function AdminMessagesPage() {
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 10_000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
   const [activeChat, setActiveChat] = useState<ChatThread | null>(null)
   const [conversation, setConversation] = useState<ConversationItem[]>([])
   const [conversationLoading, setConversationLoading] = useState(false)
