@@ -45,6 +45,16 @@ interface ConversationItem {
   allow_reply: boolean
 }
 
+interface NotificationRecipientStatus {
+  recipient_id: string
+  recipient_name: string | null
+  delivery_status: 'sending' | 'sent' | 'delivered' | 'error'
+  sent_at: string | null
+  delivered_at: string | null
+  opened_at: string | null
+  error_message: string | null
+}
+
 export function AdminMessagesPage() {
   const initialTab = new URLSearchParams(window.location.search).get('tab') === 'message' ? 'message' : 'notification'
   const [tab, setTab] = useState<Tab>(initialTab)
@@ -113,6 +123,21 @@ export function AdminMessagesPage() {
         error_count: Number(item.error_count ?? 0),
       }))
     },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
+
+  const { data: notificationRecipientStatuses = [], isLoading: notificationRecipientStatusesLoading } = useQuery({
+    queryKey: ['admin-notification-recipient-statuses', activeNotification?.thread_id],
+    queryFn: async () => {
+      if (!activeNotification) return []
+      const { data, error } = await supabase.rpc('get_admin_notification_recipient_statuses', {
+        target_thread_id: activeNotification.thread_id,
+      })
+      if (error) throw error
+      return (data ?? []) as NotificationRecipientStatus[]
+    },
+    enabled: Boolean(activeNotification?.thread_id),
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })
@@ -660,10 +685,35 @@ export function AdminMessagesPage() {
           <button onClick={() => setActiveNotification(null)}><X className="h-5 w-5" /></button>
         </div>
         {activeNotification.is_group ? <div className="mt-4 rounded-xl border border-border p-4">
-          <p className="mb-2 text-sm font-semibold">Получатели ({activeNotification.recipient_count})</p>
-          <div className="space-y-1 text-sm text-muted-foreground">
-            {activeNotification.recipient_names.map((name) => <div key={name}>{name}</div>)}
-          </div>
+          <p className="mb-3 text-sm font-semibold">Получатели ({activeNotification.recipient_count})</p>
+          {notificationRecipientStatusesLoading ? <p className="text-sm text-muted-foreground">Загрузка статусов...</p> :
+            notificationRecipientStatuses.length === 0 ? <div className="space-y-1 text-sm text-muted-foreground">
+              {activeNotification.recipient_names.map((name) => <div key={name}>{name}</div>)}
+            </div> : <div className="divide-y divide-border">
+              {notificationRecipientStatuses.map((recipient) => {
+                const label = recipient.opened_at
+                  ? 'Прочитано'
+                  : recipient.delivery_status === 'sending'
+                    ? 'Отправляется'
+                    : recipient.delivery_status === 'sent'
+                      ? 'Отправлено'
+                      : recipient.delivery_status === 'delivered'
+                        ? 'Доставлено'
+                        : 'Ошибка'
+                return <div key={recipient.recipient_id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{recipient.recipient_name || recipient.recipient_id}</span>
+                    <Badge variant={recipient.delivery_status === 'error' ? 'danger' : 'secondary'}>{label}</Badge>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {recipient.sent_at ? <span>Отправлено: {new Date(recipient.sent_at).toLocaleString('ru-RU')}</span> : null}
+                    {recipient.delivered_at ? <span>Доставлено: {new Date(recipient.delivered_at).toLocaleString('ru-RU')}</span> : null}
+                    {recipient.opened_at ? <span>Прочитано: {new Date(recipient.opened_at).toLocaleString('ru-RU')}</span> : null}
+                  </div>
+                  {recipient.error_message ? <p className="mt-1 text-xs text-red-700">{recipient.error_message}</p> : null}
+                </div>
+              })}
+            </div>}
         </div> : <p className="mt-4 text-sm"><span className="font-medium">Получатель:</span> {activeNotification.recipient_names[0] || 'Не указан'}</p>}
         <div className="mt-4 grid gap-2 sm:grid-cols-5">
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">Получателей: <strong>{activeNotification.recipient_count}</strong></div>
