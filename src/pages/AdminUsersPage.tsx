@@ -299,18 +299,99 @@ export function AdminUsersPage() {
     )
   }
 
-  function toggleDrivingAccess(user: Profile) {
+  async function sendDrivingAccessNotification(
+    studentId: string,
+    title: string,
+    message: string
+  ) {
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: studentId,
+        title,
+        message,
+        messageType: 'notification',
+        allowReply: false,
+      },
+    })
+
+    return error
+  }
+
+  async function toggleDrivingAccess(user: Profile) {
     if (user.role !== 'student' || updateProfile.isPending) return
 
     const nextValue = !user.driving_enabled
-    updateProfile.mutate(
-      { id: user.id, updates: { driving_enabled: nextValue } },
-      {
-        onSuccess: () => {
-          setToastMessage(nextValue ? 'Вождение открыто.' : 'Вождение отключено.')
-        },
+    setToastMessage(null)
+
+    try {
+      if (!nextValue) {
+        const { data: bookedSlots, error: bookedSlotsError } = await supabase
+          .from('driving_slots')
+          .select('id, start_at')
+          .eq('student_id', user.id)
+          .eq('status', 'booked')
+          .gte('start_at', new Date().toISOString())
+
+        if (bookedSlotsError) throw bookedSlotsError
+
+        const { error: cancelSlotsError } = await supabase
+          .from('driving_slots')
+          .update({ student_id: null, status: 'open' })
+          .eq('student_id', user.id)
+          .eq('status', 'booked')
+          .gte('start_at', new Date().toISOString())
+
+        if (cancelSlotsError) throw cancelSlotsError
+
+        const { error: unassignInstructorError } = await supabase
+          .from('instructor_students')
+          .delete()
+          .eq('student_id', user.id)
+
+        if (unassignInstructorError) throw unassignInstructorError
+
+        await updateProfile.mutateAsync({
+          id: user.id,
+          updates: { driving_enabled: false },
+        })
+
+        for (const slot of bookedSlots ?? []) {
+          await sendDrivingAccessNotification(
+            user.id,
+            'Занятие отменено',
+            `Запись на занятие ${new Date(slot.start_at).toLocaleString('ru-RU')} отменена, потому что доступ к разделу «Вождение» приостановлен.`
+          )
+        }
+
+        await sendDrivingAccessNotification(
+          user.id,
+          'Доступ к вождению приостановлен',
+          'Администратор приостановил доступ к разделу «Вождение». Назначенный инструктор снят, будущие записи на занятия отменены.'
+        )
+
+        setToastMessage('Вождение приостановлено. Инструктор снят, будущие записи отменены.')
+        return
       }
-    )
+
+      await updateProfile.mutateAsync({
+        id: user.id,
+        updates: { driving_enabled: true },
+      })
+
+      await sendDrivingAccessNotification(
+        user.id,
+        'Доступ к вождению открыт',
+        'Администратор открыл доступ к разделу «Вождение».'
+      )
+
+      setToastMessage('Вождение открыто.')
+    } catch (error) {
+      setToastMessage(
+        error instanceof Error
+          ? `Не удалось изменить доступ к вождению: ${error.message}`
+          : 'Не удалось изменить доступ к вождению.'
+      )
+    }
   }
 
   function confirmDelete() {
@@ -918,7 +999,7 @@ export function AdminUsersPage() {
                                 className={`h-8 w-8 px-0 ${user.driving_enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : ''}`}
                                 aria-label={user.driving_enabled ? 'Отключить вождение' : 'Открыть вождение'}
                                 title={user.driving_enabled ? 'Отключить вождение' : 'Открыть вождение'}
-                                onClick={() => toggleDrivingAccess(user)}
+                                onClick={() => void toggleDrivingAccess(user)}
                                 disabled={updateProfile.isPending}
                               >
                                 <CircleGauge className="h-4 w-4" />
