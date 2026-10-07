@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Plus, Search, Users, X } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Search, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -17,6 +17,7 @@ export function AdminGroupsPage() {
 
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [name, setName] = useState('')
   const [category, setCategory] = useState('B')
   const [startDate, setStartDate] = useState('')
@@ -33,18 +34,44 @@ export function AdminGroupsPage() {
   const filteredStudents = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('ru')
     return [...students]
+      .filter((student) => !student.group_id || student.group_id === editingGroup?.id)
       .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ru'))
       .filter((student) => !query || (student.full_name || student.email || '').toLocaleLowerCase('ru').includes(query))
-  }, [students, search])
+  }, [students, search, editingGroup])
 
   function resetCreate() {
     setIsCreateOpen(false)
+    setEditingGroup(null)
     setName('')
     setCategory('B')
     setStartDate('')
     setSearch('')
     setSelectedStudentIds([])
     setError(null)
+  }
+
+  function openCreate() {
+    setEditingGroup(null)
+    setName('')
+    setCategory('B')
+    setStartDate('')
+    setSearch('')
+    setSelectedStudentIds([])
+    setError(null)
+    setIsCreateOpen(true)
+  }
+
+  function openEdit(group: Group) {
+    setEditingGroup(group)
+    setName(group.name)
+    setCategory(group.category)
+    setStartDate(group.start_date || '')
+    setSearch('')
+    setSelectedStudentIds(
+      students.filter((student) => student.group_id === group.id).map((student) => student.id)
+    )
+    setError(null)
+    setIsCreateOpen(true)
   }
 
   function toggleStudent(studentId: string) {
@@ -66,20 +93,56 @@ export function AdminGroupsPage() {
     setIsSaving(true)
 
     try {
-      const group = await createGroup.mutateAsync({
-        name: name.trim(),
-        category: category.trim() || 'B',
-        start_date: startDate || null,
-      } as Omit<Group, 'id' | 'created_at'>)
+      let groupId = editingGroup?.id
 
-      if (selectedStudentIds.length > 0) {
-        const { error: assignError } = await supabase
+      if (editingGroup) {
+        const { error: groupError } = await supabase
+          .from('groups')
+          .update({
+            name: name.trim(),
+            category: category.trim() || 'B',
+            start_date: startDate || null,
+          })
+          .eq('id', editingGroup.id)
+
+        if (groupError) throw groupError
+
+        const { error: clearError } = await supabase
           .from('profiles')
-          .update({ group_id: group.id })
-          .in('id', selectedStudentIds)
+          .update({ group_id: null })
+          .eq('group_id', editingGroup.id)
           .eq('role', 'student')
 
+        if (clearError) throw clearError
+      } else {
+        const group = await createGroup.mutateAsync({
+          name: name.trim(),
+          category: category.trim() || 'B',
+          start_date: startDate || null,
+        } as Omit<Group, 'id' | 'created_at'>)
+        groupId = group.id
+      }
+
+      if (groupId && selectedStudentIds.length > 0) {
+        const { error: assignError } = await supabase
+          .from('profiles')
+          .update({ group_id: groupId })
+          .in('id', selectedStudentIds)
+          .eq('role', 'student')
+          .is('group_id', null)
+
         if (assignError) throw assignError
+
+        if (editingGroup) {
+          const { error: reassignCurrentError } = await supabase
+            .from('profiles')
+            .update({ group_id: groupId })
+            .in('id', selectedStudentIds)
+            .eq('role', 'student')
+            .is('group_id', null)
+
+          if (reassignCurrentError) throw reassignCurrentError
+        }
       }
 
       await Promise.all([
@@ -90,7 +153,7 @@ export function AdminGroupsPage() {
 
       resetCreate()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось создать группу.')
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить группу.')
     } finally {
       setIsSaving(false)
     }
@@ -106,7 +169,7 @@ export function AdminGroupsPage() {
         <h1 className="text-2xl font-bold text-primary">Группы</h1>
         <p className="mt-1 text-sm text-muted-foreground">Учебные группы и состав учеников.</p>
       </div>
-      <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+      <Button size="sm" onClick={openCreate}>
         <Plus className="mr-1.5 h-4 w-4" />Добавить группу
       </Button>
     </div>
@@ -149,9 +212,14 @@ export function AdminGroupsPage() {
                 </button>
 
                 {expanded ? <div className="mb-4 rounded-lg border border-border bg-slate-50 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <strong className="text-sm">Ученики</strong>
-                    <Badge variant="secondary">{groupStudents.length}</Badge>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <strong className="text-sm">Ученики</strong>
+                      <Badge variant="secondary">{groupStudents.length}</Badge>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => openEdit(group)}>
+                      <Pencil className="mr-1.5 h-4 w-4" />Редактировать
+                    </Button>
                   </div>
                   {groupStudents.length === 0 ? <p className="text-sm text-muted-foreground">В группе пока нет учеников.</p> :
                     <div className="space-y-1">
@@ -168,8 +236,8 @@ export function AdminGroupsPage() {
       <form onSubmit={handleCreate} className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold">Добавить группу</h2>
-            <p className="text-sm text-muted-foreground">Создайте группу и выберите учеников.</p>
+            <h2 className="text-xl font-bold">{editingGroup ? 'Редактировать группу' : 'Добавить группу'}</h2>
+            <p className="text-sm text-muted-foreground">{editingGroup ? 'Измените данные и состав учеников.' : 'Создайте группу и выберите учеников.'}</p>
           </div>
           <button type="button" onClick={() => !isSaving && resetCreate()}><X className="h-5 w-5" /></button>
         </div>
@@ -194,12 +262,10 @@ export function AdminGroupsPage() {
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
           {filteredStudents.map((student) => {
             const checked = selectedStudentIds.includes(student.id)
-            const currentGroup = groups.find((group) => group.id === student.group_id)
             return <label key={student.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-slate-50">
               <input type="checkbox" checked={checked} onChange={() => toggleStudent(student.id)} />
               <div className="min-w-0 flex-1">
                 <p className="truncate">{student.full_name || student.email || student.id}</p>
-                {currentGroup ? <p className="text-xs text-muted-foreground">Сейчас в группе: {currentGroup.name}</p> : null}
               </div>
             </label>
           })}
@@ -209,7 +275,7 @@ export function AdminGroupsPage() {
 
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={resetCreate} disabled={isSaving}>Отмена</Button>
-          <Button type="submit" isLoading={isSaving}>Создать группу</Button>
+          <Button type="submit" isLoading={isSaving}>{editingGroup ? 'Сохранить' : 'Создать группу'}</Button>
         </div>
       </form>
     </div> : null}
