@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { addDays, format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -70,6 +70,8 @@ export function AdminSchedulePage() {
   const [isBookingSlot, setIsBookingSlot] = useState(false)
   const [bookingStudentId, setBookingStudentId] = useState('')
   const [bookingStudentSearch, setBookingStudentSearch] = useState('')
+  const [isBookingSubmitting, setIsBookingSubmitting] = useState(false)
+  const bookingSubmitGuard = useRef(false)
   const [notificationWarning, setNotificationWarning] = useState<string | null>(null)
 
   const weekDays = useMemo(
@@ -181,21 +183,33 @@ export function AdminSchedulePage() {
   }
 
   function bookSlot() {
-    if (!activeSlot || !bookingStudentId) return
+    if (!activeSlot || !bookingStudentId || bookingSubmitGuard.current) return
+
+    bookingSubmitGuard.current = true
+    setIsBookingSubmitting(true)
 
     const previousStudentId = activeSlot.student_id
+    const selectedStudentId = bookingStudentId
     const bookedSlot = activeSlot
+
+    // Close immediately after the first click so a second booking request
+    // cannot be fired while the first one is still in progress.
+    setActiveSlot(null)
+    setIsBookingSlot(false)
+    setBookingStudentId('')
+    setBookingStudentSearch('')
+
     updateDrivingSlot.mutate(
       {
-        id: activeSlot.id,
+        id: bookedSlot.id,
         updates: {
-          student_id: bookingStudentId,
+          student_id: selectedStudentId,
           status: 'booked',
         },
       },
       {
         onSuccess: async () => {
-          if (previousStudentId && previousStudentId !== bookingStudentId) {
+          if (previousStudentId && previousStudentId !== selectedStudentId) {
             await sendStudentNotification(
               previousStudentId,
               'Запись на занятие отменена',
@@ -203,18 +217,24 @@ export function AdminSchedulePage() {
             )
           }
 
-          if (previousStudentId !== bookingStudentId) {
+          if (previousStudentId !== selectedStudentId) {
             await sendStudentNotification(
-              bookingStudentId,
+              selectedStudentId,
               'Назначено занятие',
               `Вам назначено занятие ${format(new Date(bookedSlot.start_at), 'd MMMM, HH:mm', { locale: ru })}.`
             )
           }
-
-          setActiveSlot(null)
-          setIsBookingSlot(false)
-          setBookingStudentId('')
-          setBookingStudentSearch('')
+        },
+        onError: (error) => {
+          setNotificationWarning(
+            error instanceof Error
+              ? `Не удалось забронировать занятие: ${error.message}`
+              : 'Не удалось забронировать занятие.'
+          )
+        },
+        onSettled: () => {
+          bookingSubmitGuard.current = false
+          setIsBookingSubmitting(false)
         },
       }
     )
@@ -636,7 +656,7 @@ export function AdminSchedulePage() {
                   <button type="button" className="h-10 rounded-lg border border-border bg-white px-4 font-medium text-primary hover:bg-muted" onClick={() => { setIsBookingSlot(false); setBookingStudentSearch('') }}>
                     Отмена
                   </button>
-                  <button type="button" className="h-10 rounded-lg bg-secondary px-4 font-medium text-secondary-foreground hover:bg-secondary/90 disabled:opacity-50" disabled={!bookingStudentId || updateDrivingSlot.isPending} onClick={bookSlot}>
+                  <button type="button" className="h-10 rounded-lg bg-secondary px-4 font-medium text-secondary-foreground hover:bg-secondary/90 disabled:opacity-50" disabled={!bookingStudentId || isBookingSubmitting || updateDrivingSlot.isPending} onClick={bookSlot}>
                     Забронировать
                   </button>
                 </div>
