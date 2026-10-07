@@ -68,6 +68,7 @@ export function AdminSchedulePage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isBookingSlot, setIsBookingSlot] = useState(false)
   const [bookingStudentId, setBookingStudentId] = useState('')
+  const [bookingStudentSearch, setBookingStudentSearch] = useState('')
   const [notificationWarning, setNotificationWarning] = useState<string | null>(null)
 
   const weekDays = useMemo(
@@ -123,6 +124,7 @@ export function AdminSchedulePage() {
     setIsDeleteConfirmOpen(false)
     setIsBookingSlot(false)
     setBookingStudentId(slot.student_id ?? '')
+    setBookingStudentSearch('')
     setMoveDate(toDateInputValue(slotDate))
     setMoveHour(format(slotDate, 'HH:mm'))
   }
@@ -211,6 +213,7 @@ export function AdminSchedulePage() {
           setActiveSlot(null)
           setIsBookingSlot(false)
           setBookingStudentId('')
+          setBookingStudentSearch('')
         },
       }
     )
@@ -531,21 +534,54 @@ export function AdminSchedulePage() {
                   <label className="mb-1.5 block text-sm font-medium text-primary">
                     Курсант
                   </label>
-                  <select
-                    value={bookingStudentId}
-                    onChange={(e) => setBookingStudentId(e.target.value)}
+                  <input
+                    type="search"
+                    value={bookingStudentSearch}
+                    onChange={(e) => setBookingStudentSearch(e.target.value)}
+                    placeholder="Поиск по ФИО или email"
                     className="h-10 w-full rounded-lg border border-border bg-white px-3 text-primary"
-                  >
-                    <option value="">Выберите курсанта</option>
-                    {students.map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {student.full_name || student.email || student.id}
-                      </option>
-                    ))}
-                  </select>
+                    autoFocus
+                  />
+                  <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-white">
+                    {students
+                      .filter((student) => {
+                        const query = bookingStudentSearch.trim().toLocaleLowerCase('ru')
+                        if (!query) return true
+                        return [student.full_name || '', student.email || '']
+                          .some((value) => value.toLocaleLowerCase('ru').includes(query))
+                      })
+                      .sort((a, b) => (a.full_name || a.email || '').localeCompare(b.full_name || b.email || '', 'ru'))
+                      .map((student) => {
+                        const selected = bookingStudentId === student.id
+                        return (
+                          <button
+                            key={student.id}
+                            type="button"
+                            onClick={() => setBookingStudentId(student.id)}
+                            className={`flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted ${selected ? 'bg-secondary/10' : ''}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-primary">
+                                {student.full_name || student.email || student.id}
+                              </span>
+                              {student.email ? <span className="block truncate text-xs text-muted-foreground">{student.email}</span> : null}
+                            </span>
+                            {selected ? <span className="text-xs font-medium text-secondary">Выбран</span> : null}
+                          </button>
+                        )
+                      })}
+                    {students.filter((student) => {
+                      const query = bookingStudentSearch.trim().toLocaleLowerCase('ru')
+                      if (!query) return true
+                      return [student.full_name || '', student.email || '']
+                        .some((value) => value.toLocaleLowerCase('ru').includes(query))
+                    }).length === 0 ? (
+                      <p className="px-3 py-4 text-sm text-muted-foreground">Ничего не найдено.</p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <button type="button" className="h-10 rounded-lg border border-border bg-white px-4 font-medium text-primary hover:bg-muted" onClick={() => setIsBookingSlot(false)}>
+                  <button type="button" className="h-10 rounded-lg border border-border bg-white px-4 font-medium text-primary hover:bg-muted" onClick={() => { setIsBookingSlot(false); setBookingStudentSearch('') }}>
                     Отмена
                   </button>
                   <button type="button" className="h-10 rounded-lg bg-secondary px-4 font-medium text-secondary-foreground hover:bg-secondary/90 disabled:opacity-50" disabled={!bookingStudentId || updateDrivingSlot.isPending} onClick={bookSlot}>
