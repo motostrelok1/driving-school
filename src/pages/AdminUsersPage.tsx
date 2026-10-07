@@ -151,8 +151,41 @@ export function AdminUsersPage() {
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [documentsSaving, setDocumentsSaving] = useState(false)
   const [documentsError, setDocumentsError] = useState<string | null>(null)
+  const [documentStatusByUser, setDocumentStatusByUser] = useState<Record<string, {
+    passport_complete: boolean
+    snils_complete: boolean
+    medical_complete: boolean
+  }>>({})
   const { data: selectedFinance } = useStudentFinance(userToEditFinance?.id)
   const { data: messageHistory, isLoading: isMessageHistoryLoading } = useAdminUserMessageHistory(userMessageHistory?.id)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadDocumentStatuses() {
+      const { data, error } = await supabase.rpc('get_admin_document_tasks')
+      if (error || cancelled) return
+
+      const next: Record<string, {
+        passport_complete: boolean
+        snils_complete: boolean
+        medical_complete: boolean
+      }> = {}
+
+      for (const item of data ?? []) {
+        next[item.student_id] = {
+          passport_complete: item.passport_complete,
+          snils_complete: item.snils_complete,
+          medical_complete: item.medical_complete,
+        }
+      }
+
+      setDocumentStatusByUser(next)
+    }
+
+    void loadDocumentStatuses()
+    return () => { cancelled = true }
+  }, [users])
 
   useEffect(() => {
     if (!userToEditFinance) return
@@ -172,6 +205,37 @@ export function AdminUsersPage() {
 
       return (user.full_name || '').toLowerCase().includes(search.toLowerCase())
     }) ?? []
+
+  function isDocumentTabComplete(tab: 'passport' | 'snils' | 'medical') {
+    if (tab === 'passport') {
+      return Boolean(
+        documentForm.passport_series.trim()
+        && documentForm.passport_number.trim()
+        && documentForm.passport_issued_by.trim()
+        && documentForm.passport_issue_date
+        && documentForm.passport_department_code.trim()
+        && documentForm.passport_birth_place.trim()
+        && documentForm.passport_registration_address.trim()
+      )
+    }
+
+    if (tab === 'snils') {
+      return Boolean(documentForm.snils_number.trim() && documentForm.snils_details.trim())
+    }
+
+    return Boolean(
+      documentForm.medical_certificate_number.trim()
+      && documentForm.medical_certificate_issue_date
+      && documentForm.medical_certificate_valid_until
+      && documentForm.medical_certificate_issuer.trim()
+      && documentForm.medical_certificate_details.trim()
+    )
+  }
+
+  function documentsCompleteForUser(userId: string) {
+    const status = documentStatusByUser[userId]
+    return Boolean(status?.passport_complete && status?.snils_complete && status?.medical_complete)
+  }
 
   function startEdit(user: Profile) {
     setEditing(user.id)
@@ -499,6 +563,23 @@ export function AdminUsersPage() {
       return
     }
 
+    const { data: taskRows } = await supabase.rpc('get_admin_document_tasks')
+    if (taskRows) {
+      const next: Record<string, {
+        passport_complete: boolean
+        snils_complete: boolean
+        medical_complete: boolean
+      }> = {}
+      for (const item of taskRows) {
+        next[item.student_id] = {
+          passport_complete: item.passport_complete,
+          snils_complete: item.snils_complete,
+          medical_complete: item.medical_complete,
+        }
+      }
+      setDocumentStatusByUser(next)
+    }
+
     setToastMessage('Документы пользователя сохранены.')
     setUserToDocuments(null)
   }
@@ -712,7 +793,14 @@ export function AdminUsersPage() {
                           <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="История сообщений" title="История сообщений" onClick={() => setUserMessageHistory(user)}>
                             <HistoryIcon className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="Документы" title="Документы" onClick={() => void openDocuments(user)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className={`h-8 w-8 px-0 ${user.role === 'student' && !documentsCompleteForUser(user.id) ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100' : ''}`}
+                            aria-label="Документы"
+                            title="Документы"
+                            onClick={() => void openDocuments(user)}
+                          >
                             <FileText className="h-4 w-4" />
                           </Button>
                           <Button
@@ -809,9 +897,27 @@ export function AdminUsersPage() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant={documentsTab === 'passport' ? 'primary' : 'outline'} onClick={() => setDocumentsTab('passport')}>Паспорт</Button>
-              <Button type="button" size="sm" variant={documentsTab === 'snils' ? 'primary' : 'outline'} onClick={() => setDocumentsTab('snils')}>СНИЛС</Button>
-              <Button type="button" size="sm" variant={documentsTab === 'medical' ? 'primary' : 'outline'} onClick={() => setDocumentsTab('medical')}>Справка</Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={documentsTab === 'passport' ? 'primary' : 'outline'}
+                className={!isDocumentTabComplete('passport') ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100' : ''}
+                onClick={() => setDocumentsTab('passport')}
+              >Паспорт</Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={documentsTab === 'snils' ? 'primary' : 'outline'}
+                className={!isDocumentTabComplete('snils') ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100' : ''}
+                onClick={() => setDocumentsTab('snils')}
+              >СНИЛС</Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={documentsTab === 'medical' ? 'primary' : 'outline'}
+                className={!isDocumentTabComplete('medical') ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100' : ''}
+                onClick={() => setDocumentsTab('medical')}
+              >Справка</Button>
             </div>
 
             {documentsLoading ? <p className="mt-6 text-sm text-muted-foreground">Загрузка...</p> : (
