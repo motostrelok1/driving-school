@@ -188,6 +188,19 @@ export function AdminUsersPage() {
   }, [users])
 
   useEffect(() => {
+    if (!users?.length || userToDocuments) return
+    const studentId = new URLSearchParams(window.location.search).get('documents')
+    if (!studentId) return
+    const target = users.find((item) => item.id === studentId)
+    if (!target) return
+
+    void openDocuments(target)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('documents')
+    window.history.replaceState({}, '', url)
+  }, [users, userToDocuments])
+
+  useEffect(() => {
     if (!userToEditFinance) return
 
     setContractAmount(
