@@ -7,11 +7,9 @@ import {
   useCreateDrivingSlot,
   useDeleteDrivingSlot,
   useDrivingSlots,
-  useMyLessons,
   useUpdateDrivingSlot,
 } from '@/features/schedule/useLessons'
-import { useInstructors, useStudents } from '@/features/admin/useAdmin'
-import { LessonList } from '@/features/schedule/LessonList'
+import { useAllUsers } from '@/features/admin/useAdmin'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { DrivingSlot } from '@/types'
@@ -48,17 +46,16 @@ function toDateInputValue(date: Date) {
 export function AdminSchedulePage() {
   const [searchParams] = useSearchParams()
   const initialInstructorId = searchParams.get('instructor') ?? ''
-  const { data: lessons, isLoading } = useMyLessons()
-  const { data: instructors } = useInstructors()
-  const { data: students } = useStudents()
-  const { data: drivingSlots } = useDrivingSlots()
+  const { data: users = [], isLoading: usersLoading } = useAllUsers()
+  const instructors = users.filter((person) => person.role === 'instructor')
+  const students = users.filter((person) => person.role === 'student')
+  const { data: drivingSlots, isLoading: drivingSlotsLoading } = useDrivingSlots()
   const createDrivingSlot = useCreateDrivingSlot()
   const updateDrivingSlot = useUpdateDrivingSlot()
   const deleteDrivingSlot = useDeleteDrivingSlot()
 
   const [form, setForm] = useState({
     instructorId: initialInstructorId,
-    type: 'practice' as 'theory' | 'practice',
     selectedDate: toDateInputValue(new Date()),
     duration: 60,
     comment: '',
@@ -82,6 +79,10 @@ export function AdminSchedulePage() {
     locale: ru,
   })
 
+  function isPastSlot(dateValue: string, timeValue: string) {
+    return new Date(`${dateValue}T${timeValue}:00`).getTime() < Date.now()
+  }
+
   async function sendStudentNotification(studentId: string, title: string, message: string) {
     const { error } = await supabase.functions.invoke('send-push-notification', {
       body: {
@@ -103,7 +104,7 @@ export function AdminSchedulePage() {
   }
 
   function createSlot(hourValue: string) {
-    if (!form.instructorId || !form.selectedDate) return
+    if (!form.instructorId || !form.selectedDate || isPastSlot(form.selectedDate, hourValue)) return
 
     createDrivingSlot.mutate({
       instructor_id: form.instructorId,
@@ -128,6 +129,10 @@ export function AdminSchedulePage() {
 
   function moveSlot() {
     if (!activeSlot || !moveDate || !moveHour) return
+    if (isPastSlot(moveDate, moveHour)) {
+      setNotificationWarning('Нельзя перенести занятие на прошедшие дату и время.')
+      return
+    }
 
     updateDrivingSlot.mutate(
       {
@@ -259,7 +264,7 @@ export function AdminSchedulePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Добавить занятие</CardTitle>
+          <CardTitle>Добавить занятие по вождению</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-5">
@@ -274,26 +279,12 @@ export function AdminSchedulePage() {
                   className="h-10 w-full rounded-lg border border-border px-3"
                   required
                 >
-                  <option value="">Выберите инструктора</option>
-                  {instructors?.map((instructor) => (
+                  <option value="">{instructors.length === 0 ? 'Нет пользователей с ролью «Инструктор»' : 'Выберите инструктора'}</option>
+                  {instructors.map((instructor) => (
                     <option key={instructor.id} value={instructor.id}>
                       {instructor.full_name || instructor.id}
                     </option>
                   ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-primary">
-                  Тип занятия
-                </label>
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value as 'theory' | 'practice' })}
-                  className="h-10 w-full rounded-lg border border-border px-3"
-                >
-                  <option value="theory">Теория</option>
-                  <option value="practice">Вождение</option>
                 </select>
               </div>
 
@@ -319,6 +310,12 @@ export function AdminSchedulePage() {
                 </div>
               </div>
             </div>
+
+            {instructors.length === 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                В системе нет пользователя с ролью «Инструктор». Создайте инструктора или измените роль существующего пользователя в разделе «Пользователи».
+              </div>
+            ) : null}
 
             <div className="rounded-lg border border-border p-3">
               <div className="mb-3 flex flex-col gap-2 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-center">
@@ -418,7 +415,7 @@ export function AdminSchedulePage() {
                           top: `${top}px`,
                           height: `${hourHeight / 4}px`,
                         }}
-                        disabled={!form.instructorId || createDrivingSlot.isPending || createdSlotTimes.has(timeValue)}
+                        disabled={!form.instructorId || createDrivingSlot.isPending || createdSlotTimes.has(timeValue) || isPastSlot(form.selectedDate, timeValue)}
                         onClick={() => createSlot(timeValue)}
                         aria-label={`Создать слот на ${timeValue}`}
                       />
@@ -540,7 +537,7 @@ export function AdminSchedulePage() {
                     className="h-10 w-full rounded-lg border border-border bg-white px-3 text-primary"
                   >
                     <option value="">Выберите курсанта</option>
-                    {students?.map((student) => (
+                    {students.map((student) => (
                       <option key={student.id} value={student.id}>
                         {student.full_name || student.email || student.id}
                       </option>
@@ -586,13 +583,11 @@ export function AdminSchedulePage() {
         </div>
       ) : null}
 
-      {isLoading ? (
-        <div className="flex h-64 items-center justify-center">
+      {usersLoading || drivingSlotsLoading ? (
+        <div className="flex h-32 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
-      ) : (
-        <LessonList lessons={lessons ?? []} title="Все занятия" />
-      )}
+      ) : null}
     </div>
   )
 }
