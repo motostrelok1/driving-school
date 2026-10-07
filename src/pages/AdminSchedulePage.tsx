@@ -610,7 +610,7 @@ export function AdminSchedulePage() {
                     Запись
                   </button>
                   <button type="button" className="h-10 rounded-lg border border-danger/30 bg-danger/10 px-4 font-medium text-danger hover:bg-danger/15 disabled:opacity-50" disabled={updateDrivingSlot.isPending} onClick={reserveSlot}>
-                    Бронь
+                    Бронь (отмена)
                   </button>
                 </div>
               </div>
