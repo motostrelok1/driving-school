@@ -109,16 +109,41 @@ export function useUpdateLessonStatus() {
 
 export function useDrivingSlots() {
   return useQuery({
-    queryKey: ['driving-slots'],
+    queryKey: ['driving-slots', 'future'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('driving_slots')
         .select('*, instructor:profiles!driving_slots_instructor_id_fkey(full_name), student:profiles!driving_slots_student_id_fkey(full_name)')
+        .gte('start_at', new Date().toISOString())
         .order('start_at', { ascending: true })
 
       if (error) throw error
       return (data ?? []) as DrivingSlot[]
     },
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000,
+  })
+}
+
+export function useAdminDrivingSlots(dateValue: string) {
+  return useQuery({
+    queryKey: ['driving-slots', 'admin-day', dateValue],
+    queryFn: async () => {
+      const start = new Date(`${dateValue}T00:00:00`)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+
+      const { data, error } = await supabase
+        .from('driving_slots')
+        .select('*, instructor:profiles!driving_slots_instructor_id_fkey(full_name), student:profiles!driving_slots_student_id_fkey(full_name)')
+        .gte('start_at', start.toISOString())
+        .lt('start_at', end.toISOString())
+        .order('start_at', { ascending: true })
+
+      if (error) throw error
+      return (data ?? []) as DrivingSlot[]
+    },
+    enabled: Boolean(dateValue),
     refetchOnWindowFocus: true,
     refetchInterval: 3000,
   })
