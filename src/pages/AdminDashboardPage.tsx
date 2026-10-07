@@ -1,10 +1,26 @@
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { useAllUsers, useGroups } from '@/features/admin/useAdmin'
-import { Users, GraduationCap, Car, Shield } from 'lucide-react'
+import { useAllUsers } from '@/features/admin/useAdmin'
+import { supabase } from '@/lib/supabase'
+import { Users, GraduationCap, Car, Shield, FileText, ListTodo } from 'lucide-react'
 
 export function AdminDashboardPage() {
   const { data: users } = useAllUsers()
-  const { data: groups } = useGroups()
+  const { data: documentTasks = [] } = useQuery({
+    queryKey: ['admin-document-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_admin_document_tasks')
+      if (error) throw error
+      return data ?? []
+    },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
+
+  const incompleteDocuments = documentTasks.filter(
+    (item: any) => !item.passport_complete || !item.snils_complete || !item.medical_complete
+  )
 
   const stats = [
     {
@@ -55,28 +71,29 @@ export function AdminDashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Группы</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <ListTodo className="h-5 w-5" />
+            Задачи
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {groups && groups.length > 0 ? (
-            <div className="space-y-2">
-              {groups.map((group) => (
-                <div
-                  key={group.id}
-                  className="flex items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <div>
-                    <p className="font-medium text-primary">{group.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Категория {group.category}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          <Link
+            to="/admin/tasks"
+            className="flex items-center justify-between gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-muted"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-700">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium text-primary">Документы</p>
+                <p className="text-sm text-muted-foreground">Ученики с незаполненными документами</p>
+              </div>
             </div>
-          ) : (
-            <p className="text-muted-foreground">Групп пока нет.</p>
-          )}
+            <span className={`flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-sm font-bold ${incompleteDocuments.length > 0 ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
+              {incompleteDocuments.length}
+            </span>
+          </Link>
         </CardContent>
       </Card>
     </div>
