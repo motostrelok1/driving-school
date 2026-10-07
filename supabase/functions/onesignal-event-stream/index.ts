@@ -81,7 +81,9 @@ Deno.serve(async (req) => {
       return json({ success: true, updated: false, reason: "No external_id" });
     }
 
-    if (eventKind === "message.push.received") {
+    const normalizedKind = eventKind.toLowerCase()
+
+    if (normalizedKind.includes("push") && normalizedKind.includes("received")) {
       const { error } = await admin
         .from("message_recipients")
         .update({
@@ -96,13 +98,16 @@ Deno.serve(async (req) => {
         console.error("Failed to mark delivered:", error);
         return json({ error: "Failed to update delivery status" }, 500);
       }
-    } else if (eventKind === "message.push.failed" || eventKind === "message.push.unsubscribed") {
+    } else if (
+      normalizedKind.includes("push")
+      && (normalizedKind.includes("failed") || normalizedKind.includes("unsubscribed"))
+    ) {
       const { error } = await admin
         .from("message_recipients")
         .update({
           delivery_status: "error",
           error_message: payload.failure_reason?.trim() || (
-            eventKind === "message.push.unsubscribed"
+            normalizedKind.includes("unsubscribed")
               ? "Push subscription is unsubscribed"
               : "OneSignal push failed"
           ),
@@ -114,7 +119,7 @@ Deno.serve(async (req) => {
         console.error("Failed to mark push error:", error);
         return json({ error: "Failed to update delivery status" }, 500);
       }
-    } else if (eventKind === "message.push.sent") {
+    } else if (normalizedKind.includes("push") && normalizedKind.includes("sent")) {
       const { error } = await admin
         .from("message_recipients")
         .update({
