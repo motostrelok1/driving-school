@@ -126,9 +126,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false)
   const isAdmin = role === 'admin'
 
-  const visibleNav = navItems.filter(
-    (item) => role && item.roles.includes(role)
-  )
+  const visibleNav = navItems.filter((item) => {
+    if (!role || !item.roles.includes(role)) return false
+    if (item.href === '/student/practice' && role === 'student') {
+      return Boolean(profile?.driving_enabled)
+    }
+    return true
+  })
 
   async function handleSignOut() {
     if (isSigningOut) return
