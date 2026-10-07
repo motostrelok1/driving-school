@@ -7,6 +7,7 @@ export interface Profile {
   email: string | null
   phone: string | null
   group_id: string | null
+  driving_enabled: boolean
   instructor_photo_url: string | null
   instructor_age: number | null
   instructor_rating: number | null

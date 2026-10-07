@@ -497,7 +497,7 @@ function InstructorCard({
 }
 
 export function StudentPracticePage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { data: lessons, isLoading: isLessonsLoading } = useMyLessons()
   const { data: instructors, isLoading: isInstructorsLoading } = useAvailableInstructors()
   const { data: selectedInstructors, isLoading: isSelectedInstructorsLoading } = useMyInstructors()
@@ -509,6 +509,9 @@ export function StudentPracticePage() {
   const [isChangeWarningOpen, setIsChangeWarningOpen] = useState(false)
   const [chosenInstructorId, setChosenInstructorId] = useState<string | null>(null)
   const [changeInstructorError, setChangeInstructorError] = useState<string | null>(null)
+
+  const drivingDisabled = Boolean(profile && !profile.driving_enabled)
+
   const completedPracticeInstructorIds = useMemo(
     () => new Set((lessons ?? []).filter((lesson: LessonWithDetails) => lesson.type === 'practice' && lesson.status === 'completed').map((lesson) => lesson.instructor_id).filter(Boolean)),
     [lessons]
@@ -567,6 +570,22 @@ export function StudentPracticePage() {
 
   if (isLessonsLoading || isInstructorsLoading || isSelectedInstructorsLoading || isDrivingSlotsLoading) {
     return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+  }
+
+  if (drivingDisabled) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-primary">Вождение</h1>
+        <Card>
+          <CardHeader><CardTitle>Вождение недоступно</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              Доступ к разделу «Вождение» ещё не открыт администратором.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   const hasBookedSlots = myBookedDrivingSlots.length > 0

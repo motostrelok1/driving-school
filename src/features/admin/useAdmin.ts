@@ -70,7 +70,7 @@ export function useAllUsers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, role, full_name, email, phone, group_id, instructor_photo_url, instructor_age, instructor_rating, instructor_car, instructor_car_year, instructor_car_photo_url, instructor_reviews_rating, instructor_review_text, created_at, updated_at')
+        .select('id, role, full_name, email, phone, group_id, driving_enabled, instructor_photo_url, instructor_age, instructor_rating, instructor_car, instructor_car_year, instructor_car_photo_url, instructor_reviews_rating, instructor_review_text, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
