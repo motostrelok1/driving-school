@@ -30,6 +30,10 @@ interface NotificationThread {
   body: string
   created_at: string
   recipient_count: number
+  sent_count: number
+  delivered_count: number
+  opened_count: number
+  error_count: number
 }
 
 interface ConversationItem {
@@ -47,6 +51,10 @@ export function AdminMessagesPage() {
   const [selectedNotificationUser, setSelectedNotificationUser] = useState<{ id: string; full_name: string | null } | null>(null)
   const [activeNotification, setActiveNotification] = useState<NotificationThread | null>(null)
   const [notificationSearch, setNotificationSearch] = useState('')
+  const [notificationTypeFilter, setNotificationTypeFilter] = useState<'all' | 'personal' | 'group'>('all')
+  const [notificationStatusFilter, setNotificationStatusFilter] = useState<'all' | 'sent' | 'delivered' | 'opened' | 'error'>('all')
+  const [notificationDateFrom, setNotificationDateFrom] = useState('')
+  const [notificationDateTo, setNotificationDateTo] = useState('')
   const [sendTo, setSendTo] = useState<{ id: string; full_name: string | null } | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -99,6 +107,10 @@ export function AdminMessagesPage() {
         recipient_ids: item.recipient_ids ?? [],
         recipient_names: item.recipient_names ?? [],
         recipient_count: Number(item.recipient_count ?? 0),
+        sent_count: Number(item.sent_count ?? 0),
+        delivered_count: Number(item.delivered_count ?? 0),
+        opened_count: Number(item.opened_count ?? 0),
+        error_count: Number(item.error_count ?? 0),
       }))
     },
     refetchOnMount: 'always',
@@ -135,6 +147,39 @@ export function AdminMessagesPage() {
   )
 
 
+  const filteredNotificationThreads = notificationThreads.filter((notification) => {
+    if (notificationTypeFilter === 'personal' && notification.is_group) return false
+    if (notificationTypeFilter === 'group' && !notification.is_group) return false
+
+    if (notificationStatusFilter === 'sent' && notification.sent_count === 0) return false
+    if (notificationStatusFilter === 'delivered' && notification.delivered_count === 0) return false
+    if (notificationStatusFilter === 'opened' && notification.opened_count === 0) return false
+    if (notificationStatusFilter === 'error' && notification.error_count === 0) return false
+
+    const createdAt = new Date(notification.created_at)
+    if (notificationDateFrom) {
+      const from = new Date(`${notificationDateFrom}T00:00:00`)
+      if (createdAt < from) return false
+    }
+    if (notificationDateTo) {
+      const to = new Date(`${notificationDateTo}T23:59:59.999`)
+      if (createdAt > to) return false
+    }
+
+    return true
+  })
+
+  const notificationStats = filteredNotificationThreads.reduce(
+    (totals, item) => ({
+      recipients: totals.recipients + item.recipient_count,
+      sent: totals.sent + item.sent_count,
+      delivered: totals.delivered + item.delivered_count,
+      opened: totals.opened + item.opened_count,
+      errors: totals.errors + item.error_count,
+    }),
+    { recipients: 0, sent: 0, delivered: 0, opened: 0, errors: 0 }
+  )
+
   const notificationInbox = (() => {
     const personal = new Map<string, {
       kind: 'personal'
@@ -146,11 +191,11 @@ export function AdminMessagesPage() {
       count: number
     }>()
 
-    const groups = notificationThreads
+    const groups = filteredNotificationThreads
       .filter((notification) => notification.is_group)
       .map((notification) => ({ kind: 'group' as const, notification }))
 
-    notificationThreads
+    filteredNotificationThreads
       .filter((notification) => !notification.is_group && notification.recipient_ids[0])
       .forEach((notification) => {
         const recipientId = notification.recipient_ids[0]
@@ -476,6 +521,62 @@ export function AdminMessagesPage() {
           onChange={(e) => setNotificationSearch(e.target.value)}
           placeholder="Поиск по ФИО, заголовку или тексту..."
         />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <select
+            className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
+            value={notificationTypeFilter}
+            onChange={(e) => setNotificationTypeFilter(e.target.value as 'all' | 'personal' | 'group')}
+          >
+            <option value="all">Все типы</option>
+            <option value="personal">Личные</option>
+            <option value="group">Групповые</option>
+          </select>
+          <select
+            className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
+            value={notificationStatusFilter}
+            onChange={(e) => setNotificationStatusFilter(e.target.value as 'all' | 'sent' | 'delivered' | 'opened' | 'error')}
+          >
+            <option value="all">Все статусы</option>
+            <option value="sent">Отправлено</option>
+            <option value="delivered">Доставлено</option>
+            <option value="opened">Прочитано</option>
+            <option value="error">Ошибка</option>
+          </select>
+          <input
+            type="date"
+            className="h-10 rounded-lg border border-border px-3 text-sm"
+            value={notificationDateFrom}
+            onChange={(e) => setNotificationDateFrom(e.target.value)}
+            title="Дата от"
+          />
+          <input
+            type="date"
+            className="h-10 rounded-lg border border-border px-3 text-sm"
+            value={notificationDateTo}
+            onChange={(e) => setNotificationDateTo(e.target.value)}
+            title="Дата до"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setNotificationTypeFilter('all')
+              setNotificationStatusFilter('all')
+              setNotificationDateFrom('')
+              setNotificationDateTo('')
+              setNotificationSearch('')
+            }}
+          >
+            Сбросить
+          </Button>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="text-muted-foreground">Получателей:</span> <strong>{notificationStats.recipients}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="text-muted-foreground">Отправлено:</span> <strong>{notificationStats.sent}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="text-muted-foreground">Доставлено:</span> <strong>{notificationStats.delivered}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="text-muted-foreground">Прочитано:</span> <strong>{notificationStats.opened}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="text-muted-foreground">Ошибки:</span> <strong>{notificationStats.errors}</strong></div>
+        </div>
       </CardHeader>
       <CardContent>
         {notificationThreadsLoading ? <p>Загрузка...</p> : notificationThreads.length === 0 ? <div className="py-8 text-center text-muted-foreground">
@@ -564,6 +665,13 @@ export function AdminMessagesPage() {
             {activeNotification.recipient_names.map((name) => <div key={name}>{name}</div>)}
           </div>
         </div> : <p className="mt-4 text-sm"><span className="font-medium">Получатель:</span> {activeNotification.recipient_names[0] || 'Не указан'}</p>}
+        <div className="mt-4 grid gap-2 sm:grid-cols-5">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">Получателей: <strong>{activeNotification.recipient_count}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">Отправлено: <strong>{activeNotification.sent_count}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">Доставлено: <strong>{activeNotification.delivered_count}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">Прочитано: <strong>{activeNotification.opened_count}</strong></div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">Ошибки: <strong>{activeNotification.error_count}</strong></div>
+        </div>
         <div className="mt-4 rounded-xl border border-border p-4">
           <p className="whitespace-pre-wrap">{activeNotification.body}</p>
           <p className="mt-3 text-xs text-muted-foreground">{new Date(activeNotification.created_at).toLocaleString('ru-RU')}</p>
