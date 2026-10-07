@@ -49,10 +49,6 @@ export function AdminSchedulePage() {
   const { data: users = [], isLoading: usersLoading } = useAllUsers()
   const instructors = users.filter((person) => person.role === 'instructor')
   const students = users.filter((person) => person.role === 'student')
-  const { data: drivingSlots, isLoading: drivingSlotsLoading } = useAdminDrivingSlots(form.selectedDate)
-  const createDrivingSlot = useCreateDrivingSlot()
-  const updateDrivingSlot = useUpdateDrivingSlot()
-  const deleteDrivingSlot = useDeleteDrivingSlot()
 
   const [form, setForm] = useState({
     instructorId: initialInstructorId,
@@ -60,6 +56,11 @@ export function AdminSchedulePage() {
     duration: 60,
     comment: '',
   })
+
+  const { data: drivingSlots, isLoading: drivingSlotsLoading } = useAdminDrivingSlots(form.selectedDate)
+  const createDrivingSlot = useCreateDrivingSlot()
+  const updateDrivingSlot = useUpdateDrivingSlot()
+  const deleteDrivingSlot = useDeleteDrivingSlot()
   const [weekStartDate, setWeekStartDate] = useState(() => new Date())
   const [activeSlot, setActiveSlot] = useState<DrivingSlot | null>(null)
   const [isMovingSlot, setIsMovingSlot] = useState(false)
