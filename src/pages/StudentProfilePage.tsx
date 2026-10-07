@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BookOpen, Car, ChevronDown, UserRound } from 'lucide-react'
+import { BookOpen, Car, ChevronDown, Info, UserRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/hooks/useAuth'
 import { useMyLessons } from '@/features/schedule/useLessons'
@@ -119,6 +119,7 @@ export function StudentProfilePage() {
         </Card>
       </Link>
 
+      {profile?.driving_enabled ? (
       <Link
         to="/student/practice"
         className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
@@ -139,62 +140,90 @@ export function StudentProfilePage() {
           </CardContent>
         </Card>
       </Link>
+      ) : null}
 
       <Card>
         <CardContent>
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-4 text-left"
-            aria-expanded={isInstructorsOpen}
-            onClick={() => setIsInstructorsOpen((value) => !value)}
-          >
-            <span className="flex min-w-0 items-center gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
-                <UserRound className="h-6 w-6" />
-              </span>
-              <span>
-                <span className="block font-semibold text-primary">Инструктор</span>
-                <span className="mt-1 block text-sm text-muted-foreground">
-                  {instructors && instructors.length > 0
-                    ? `Назначено: ${instructors.length}`
-                    : 'Инструкторы не назначены'}
-                </span>
-              </span>
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-                isInstructorsOpen ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-
-          {isInstructorsOpen ? (
-            <div className="mt-4 space-y-2 border-t border-border pt-4">
-              {instructors && instructors.length > 0 ? (
-                instructors.map((instructor) => (
-                  <div
-                    key={instructor.id}
-                    className="rounded-lg border border-border p-3"
-                  >
-                    <p className="font-medium text-primary">
-                      {instructor.full_name || 'Без имени'}
-                    </p>
-                    {instructor.phone ? (
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {instructor.phone}
-                      </p>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Инструкторы не назначены
-                </p>
-              )}
+          <div className="flex items-start gap-4">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${profile?.driving_enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+              <Info className="h-6 w-6" />
             </div>
-          ) : null}
+            <div className="min-w-0">
+              <p className="font-semibold text-primary">Информация по вождению</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {profile?.driving_enabled
+                  ? 'Доступ к разделу «Вождение» открыт.'
+                  : 'Доступ к разделу «Вождение» приостановлен администратором.'}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {profile?.driving_enabled
+                  ? (instructors && instructors.length > 0
+                      ? `Назначен инструктор: ${instructors[0].full_name || 'Без имени'}.`
+                      : 'Инструктор пока не назначен.')
+                  : 'Назначенный инструктор и будущие записи на занятия снимаются при приостановке доступа.'}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {profile?.driving_enabled ? (
+        <Card>
+          <CardContent>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-4 text-left"
+              aria-expanded={isInstructorsOpen}
+              onClick={() => setIsInstructorsOpen((value) => !value)}
+            >
+              <span className="flex min-w-0 items-center gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+                  <UserRound className="h-6 w-6" />
+                </span>
+                <span>
+                  <span className="block font-semibold text-primary">Инструктор</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    {instructors && instructors.length > 0
+                      ? `Назначено: ${instructors.length}`
+                      : 'Инструкторы не назначены'}
+                  </span>
+                </span>
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                  isInstructorsOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {isInstructorsOpen ? (
+              <div className="mt-4 space-y-2 border-t border-border pt-4">
+                {instructors && instructors.length > 0 ? (
+                  instructors.map((instructor) => (
+                    <div
+                      key={instructor.id}
+                      className="rounded-lg border border-border p-3"
+                    >
+                      <p className="font-medium text-primary">
+                        {instructor.full_name || 'Без имени'}
+                      </p>
+                      {instructor.phone ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {instructor.phone}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Инструкторы не назначены
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }
