@@ -316,6 +316,7 @@ export function AdminMessagesPage() {
     setSendTo(null)
     setTitle('')
     setBody('')
+    await refetchNotificationThreads()
     setToast('Уведомление отправлено и сохранено в истории.')
   }
 
