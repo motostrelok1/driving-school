@@ -6,7 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Trash2, X } fro
 import {
   useCreateDrivingSlot,
   useDeleteDrivingSlot,
-  useDrivingSlots,
+  useAdminDrivingSlots,
   useUpdateDrivingSlot,
 } from '@/features/schedule/useLessons'
 import { useAllUsers } from '@/features/admin/useAdmin'
@@ -49,7 +49,7 @@ export function AdminSchedulePage() {
   const { data: users = [], isLoading: usersLoading } = useAllUsers()
   const instructors = users.filter((person) => person.role === 'instructor')
   const students = users.filter((person) => person.role === 'student')
-  const { data: drivingSlots, isLoading: drivingSlotsLoading } = useDrivingSlots()
+  const { data: drivingSlots, isLoading: drivingSlotsLoading } = useAdminDrivingSlots(form.selectedDate)
   const createDrivingSlot = useCreateDrivingSlot()
   const updateDrivingSlot = useUpdateDrivingSlot()
   const deleteDrivingSlot = useDeleteDrivingSlot()
