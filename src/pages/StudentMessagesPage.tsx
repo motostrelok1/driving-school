@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCircle2, MessageCircle, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -52,6 +52,7 @@ export function StudentMessagesPage() {
   const [replyBody, setReplyBody] = useState('')
   const [replyError, setReplyError] = useState<string | null>(null)
   const [isReplying, setIsReplying] = useState(false)
+  const conversationEndRef = useRef<HTMLDivElement | null>(null)
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
@@ -157,6 +158,13 @@ export function StudentMessagesPage() {
     }
   }
 
+  useEffect(() => {
+    if (!activeThread || conversationLoading) return
+    requestAnimationFrame(() => {
+      conversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    })
+  }, [activeThread, conversation, conversationLoading])
+
   async function handleReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!activeThread?.id || !replyBody.trim() || isReplying) return
@@ -254,6 +262,7 @@ export function StudentMessagesPage() {
               </div>
             </div>
           })}
+          <div ref={conversationEndRef} />
         </div>
 
         <form onSubmit={handleReply} className="border-t border-border bg-white p-3">
