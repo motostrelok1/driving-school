@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase'
 import type { Profile, UserRole } from '@/types'
 import {
   CalendarDays,
+  CircleGauge,
   ChevronDown,
   DollarSign,
   KeyRound,
@@ -294,6 +295,20 @@ export function AdminUsersPage() {
               ? 'Этот инструктор уже назначен ученику.'
               : error.message,
           })),
+      }
+    )
+  }
+
+  function toggleDrivingAccess(user: Profile) {
+    if (user.role !== 'student' || updateProfile.isPending) return
+
+    const nextValue = !user.driving_enabled
+    updateProfile.mutate(
+      { id: user.id, updates: { driving_enabled: nextValue } },
+      {
+        onSuccess: () => {
+          setToastMessage(nextValue ? 'Вождение открыто.' : 'Вождение отключено.')
+        },
       }
     )
   }
@@ -896,14 +911,27 @@ export function AdminUsersPage() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {user.role === 'student' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              aria-label="Расчеты ученика"
-                              onClick={() => openFinanceEdit(user)}
-                            >
-                              <DollarSign className="h-4 w-4" />
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className={`h-8 w-8 px-0 ${user.driving_enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : ''}`}
+                                aria-label={user.driving_enabled ? 'Отключить вождение' : 'Открыть вождение'}
+                                title={user.driving_enabled ? 'Отключить вождение' : 'Открыть вождение'}
+                                onClick={() => toggleDrivingAccess(user)}
+                                disabled={updateProfile.isPending}
+                              >
+                                <CircleGauge className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                aria-label="Расчеты ученика"
+                                onClick={() => openFinanceEdit(user)}
+                              >
+                                <DollarSign className="h-4 w-4" />
+                              </Button>
+                            </>
                           ) : null}
                           {user.role === 'instructor' ? (
                             <Link
