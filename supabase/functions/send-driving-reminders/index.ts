@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+const SCHOOL_TIME_ZONE = "Europe/Moscow";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://dvizh-school.ru",
   "Access-Control-Allow-Headers": "content-type, x-reminder-secret",
@@ -97,9 +99,20 @@ Deno.serve(async (req) => {
       const instructorName =
         (slot.instructor as { full_name?: string | null } | null)?.full_name ?? null;
       const title = "Напоминание о занятии";
+      const lessonDate = new Intl.DateTimeFormat("ru-RU", {
+        timeZone: SCHOOL_TIME_ZONE,
+        day: "numeric",
+        month: "long",
+      }).format(start);
+      const lessonTime = new Intl.DateTimeFormat("ru-RU", {
+        timeZone: SCHOOL_TIME_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(start);
       const message = instructorName
-        ? `Завтра в ${start.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} у вас занятие по вождению. Инструктор: ${instructorName}.`
-        : `Завтра в ${start.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} у вас занятие по вождению.`;
+        ? `${lessonDate} в ${lessonTime} у вас занятие по вождению. Инструктор: ${instructorName}.`
+        : `${lessonDate} в ${lessonTime} у вас занятие по вождению.`;
 
       const { data: thread, error: threadError } = await supabase
         .from("message_threads")
