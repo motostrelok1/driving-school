@@ -104,11 +104,11 @@ export function AdminSchedulePage() {
     return true
   }
 
-  function createSlot(hourValue: string) {
-    if (!form.instructorId || !form.selectedDate || isPastSlot(form.selectedDate, hourValue)) return
+  function createSlot(hourValue: string, instructorId = form.instructorId) {
+    if (!instructorId || !form.selectedDate || isPastSlot(form.selectedDate, hourValue)) return
 
     createDrivingSlot.mutate({
-      instructor_id: form.instructorId,
+      instructor_id: instructorId,
       student_id: null,
       start_at: new Date(`${form.selectedDate}T${hourValue}:00`).toISOString(),
       duration_minutes: Number(form.duration),
@@ -247,13 +247,21 @@ export function AdminSchedulePage() {
   }
 
   const todayValue = toDateInputValue(new Date())
-  const selectedDaySlots = (drivingSlots ?? [])
-    .filter((slot) => slot.instructor_id === form.instructorId)
+  const visibleInstructors = form.instructorId
+    ? instructors.filter((instructor) => instructor.id === form.instructorId)
+    : instructors
+  const selectedDateSlots = (drivingSlots ?? [])
     .filter((slot) => toDateInputValue(new Date(slot.start_at)) === form.selectedDate)
 
-  const createdSlotTimes = new Set(
-    selectedDaySlots.map((slot) => format(new Date(slot.start_at), 'HH:mm'))
-  )
+  function slotsForInstructor(instructorId: string) {
+    return selectedDateSlots.filter((slot) => slot.instructor_id === instructorId)
+  }
+
+  function createdSlotTimesForInstructor(instructorId: string) {
+    return new Set(
+      slotsForInstructor(instructorId).map((slot) => format(new Date(slot.start_at), 'HH:mm'))
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -280,9 +288,8 @@ export function AdminSchedulePage() {
                   value={form.instructorId}
                   onChange={(e) => setForm({ ...form, instructorId: e.target.value })}
                   className="h-10 w-full rounded-lg border border-border px-3"
-                  required
                 >
-                  <option value="">{instructors.length === 0 ? 'Нет пользователей с ролью «Инструктор»' : 'Выберите инструктора'}</option>
+                  <option value="">{instructors.length === 0 ? 'Нет пользователей с ролью «Инструктор»' : 'Все инструкторы'}</option>
                   {instructors.map((instructor) => (
                     <option key={instructor.id} value={instructor.id}>
                       {instructor.full_name || instructor.id}
@@ -389,68 +396,112 @@ export function AdminSchedulePage() {
                   <Clock className="h-4 w-4" />
                   {selectedDateLabel}
                 </p>
-                <div
-                  className="relative min-w-[280px] rounded-lg border border-border bg-white"
-                  style={{ height: `${(dayEndHour - dayStartHour) * hourHeight}px` }}
-                >
-                  {hourLabels.map((hour) => (
+                <div className="overflow-x-auto pb-2">
+                  <div
+                    style={{
+                      minWidth: `${80 + Math.max(visibleInstructors.length, 1) * 220}px`,
+                    }}
+                  >
                     <div
-                      key={hour}
-                      className="absolute left-0 right-0 border-t border-border/70"
-                      style={{ top: `${(hour - dayStartHour) * hourHeight}px` }}
+                      className="grid border-x border-t border-border bg-slate-50"
+                      style={{
+                        gridTemplateColumns: `80px repeat(${Math.max(visibleInstructors.length, 1)}, minmax(220px, 1fr))`,
+                      }}
                     >
-                      <span className="absolute left-3 top-1 text-xs font-medium text-muted-foreground">
-                        {String(hour).padStart(2, '0')}:00
-                      </span>
+                      <div className="border-r border-border px-2 py-3 text-xs font-medium text-muted-foreground">
+                        Время
+                      </div>
+                      {visibleInstructors.map((instructor) => (
+                        <div key={instructor.id} className="border-r border-border px-3 py-3 text-sm font-semibold text-primary last:border-r-0">
+                          {instructor.full_name || instructor.id}
+                        </div>
+                      ))}
                     </div>
-                  ))}
 
-                  {timeOptions.map((timeValue) => {
-                    const [hour, minutes] = timeValue.split(':').map(Number)
-                    const top = (((hour * 60 + minutes) - dayStartHour * 60) / 60) * hourHeight
+                    <div
+                      className="relative grid rounded-b-lg border border-border bg-white"
+                      style={{
+                        gridTemplateColumns: `80px repeat(${Math.max(visibleInstructors.length, 1)}, minmax(220px, 1fr))`,
+                        height: `${(dayEndHour - dayStartHour) * hourHeight}px`,
+                      }}
+                    >
+                      {hourLabels.map((hour) => (
+                        <div
+                          key={hour}
+                          className="pointer-events-none absolute left-0 right-0 border-t border-border/70"
+                          style={{ top: `${(hour - dayStartHour) * hourHeight}px` }}
+                        />
+                      ))}
 
-                    return (
-                      <button
-                        key={timeValue}
-                        type="button"
-                        className="absolute left-20 right-3 rounded border border-transparent text-left text-sm transition-colors hover:border-secondary/40 hover:bg-secondary/5 disabled:pointer-events-none disabled:opacity-50"
-                        style={{
-                          top: `${top}px`,
-                          height: `${hourHeight / 4}px`,
-                        }}
-                        disabled={!form.instructorId || createDrivingSlot.isPending || createdSlotTimes.has(timeValue) || isPastSlot(form.selectedDate, timeValue)}
-                        onClick={() => createSlot(timeValue)}
-                        aria-label={`Создать слот на ${timeValue}`}
-                      />
-                    )
-                  })}
+                      <div className="relative border-r border-border">
+                        {hourLabels.map((hour) => (
+                          <span
+                            key={hour}
+                            className="absolute left-3 text-xs font-medium text-muted-foreground"
+                            style={{ top: `${(hour - dayStartHour) * hourHeight + 4}px` }}
+                          >
+                            {String(hour).padStart(2, '0')}:00
+                          </span>
+                        ))}
+                      </div>
 
-                  {selectedDaySlots.map((slot) => {
-                    const startDate = new Date(slot.start_at)
-                    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
-                    const top = ((startMinutes - dayStartHour * 60) / 60) * hourHeight
-                    const height = (slot.duration_minutes / 60) * hourHeight
-                    const startLabel = format(startDate, 'HH:mm')
-                    const endLabel = format(
-                      new Date(startDate.getTime() + slot.duration_minutes * 60 * 1000),
-                      'HH:mm'
-                    )
+                      {visibleInstructors.map((instructor) => {
+                        const instructorSlots = slotsForInstructor(instructor.id)
+                        const createdSlotTimes = createdSlotTimesForInstructor(instructor.id)
 
-                    return (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        className={`absolute left-20 right-3 rounded-lg border px-3 py-2 text-left text-sm font-medium shadow-sm transition-colors ${slot.status === 'reserved' ? 'border-danger/30 bg-danger/10 text-danger hover:bg-danger/15' : slot.status === 'booked' ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : 'border-secondary/40 bg-secondary/15 text-secondary hover:bg-secondary/20'}`}
-                        style={{ top: `${top + 4}px`, height: `${Math.max(height - 8, 40)}px` }}
-                        onClick={() => openSlotMenu(slot)}
-                      >
-                        <span className="block">{startLabel} - {endLabel}</span>
-                        <span className="text-xs text-secondary/80">
-                          {slot.status === 'open' ? 'Открыто для записи' : slot.status === 'booked' ? `Записано${slot.student?.full_name ? `: ${slot.student.full_name}` : ''}` : slot.status === 'reserved' ? 'Бронь без ФИО' : 'Отменено'}
-                        </span>
-                      </button>
-                    )
-                  })}
+                        return (
+                          <div key={instructor.id} className="relative border-r border-border last:border-r-0">
+                            {timeOptions.map((timeValue) => {
+                              const [hour, minutes] = timeValue.split(':').map(Number)
+                              const top = (((hour * 60 + minutes) - dayStartHour * 60) / 60) * hourHeight
+
+                              return (
+                                <button
+                                  key={timeValue}
+                                  type="button"
+                                  className="absolute left-1 right-1 rounded border border-transparent transition-colors hover:border-secondary/40 hover:bg-secondary/5 disabled:pointer-events-none disabled:opacity-50"
+                                  style={{
+                                    top: `${top}px`,
+                                    height: `${hourHeight / 4}px`,
+                                  }}
+                                  disabled={createDrivingSlot.isPending || createdSlotTimes.has(timeValue) || isPastSlot(form.selectedDate, timeValue)}
+                                  onClick={() => createSlot(timeValue, instructor.id)}
+                                  aria-label={`Создать слот для ${instructor.full_name || 'инструктора'} на ${timeValue}`}
+                                />
+                              )
+                            })}
+
+                            {instructorSlots.map((slot) => {
+                              const startDate = new Date(slot.start_at)
+                              const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
+                              const top = ((startMinutes - dayStartHour * 60) / 60) * hourHeight
+                              const height = (slot.duration_minutes / 60) * hourHeight
+                              const startLabel = format(startDate, 'HH:mm')
+                              const endLabel = format(
+                                new Date(startDate.getTime() + slot.duration_minutes * 60 * 1000),
+                                'HH:mm'
+                              )
+
+                              return (
+                                <button
+                                  key={slot.id}
+                                  type="button"
+                                  className={`absolute left-1 right-1 overflow-hidden rounded-lg border px-2 py-2 text-left text-sm font-medium shadow-sm transition-colors ${slot.status === 'reserved' ? 'border-danger/30 bg-danger/10 text-danger hover:bg-danger/15' : slot.status === 'booked' ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : 'border-secondary/40 bg-secondary/15 text-secondary hover:bg-secondary/20'}`}
+                                  style={{ top: `${top + 4}px`, height: `${Math.max(height - 8, 40)}px` }}
+                                  onClick={() => openSlotMenu(slot)}
+                                >
+                                  <span className="block">{startLabel} - {endLabel}</span>
+                                  <span className="block truncate text-xs">
+                                    {slot.status === 'open' ? 'Открыто для записи' : slot.status === 'booked' ? `Записано${slot.student?.full_name ? `: ${slot.student.full_name}` : ''}` : slot.status === 'reserved' ? 'Бронь без ФИО' : 'Отменено'}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
