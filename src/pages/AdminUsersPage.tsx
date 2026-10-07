@@ -320,7 +320,7 @@ export function AdminUsersPage() {
     resetCreateForm()
   }
 
-  function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setCreateError(null)
 
@@ -335,9 +335,26 @@ export function AdminUsersPage() {
       return
     }
 
+    const normalizedEmail = createEmail.trim().toLowerCase()
+    const { data: existingProfile, error: lookupError } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle()
+
+    if (lookupError) {
+      setCreateError(lookupError.message)
+      return
+    }
+
+    if (existingProfile) {
+      setCreateError('Пользователь с такой почтой уже зарегистрирован.')
+      return
+    }
+
     createUser.mutate(
       {
-        email: createEmail.trim(),
+        email: normalizedEmail,
         password: createPassword,
         fullName: createFullName.trim(),
         phone: createPhone.trim(),
@@ -345,7 +362,33 @@ export function AdminUsersPage() {
       },
       {
         onSuccess: () => resetCreateForm(),
-        onError: (error) => setCreateError(getAdminAuthErrorMessage(error.message)),
+        onError: async (error) => {
+          const normalizedMessage = error.message.toLowerCase()
+          const duplicateError = normalizedMessage.includes('already')
+            || normalizedMessage.includes('registered')
+
+          if (duplicateError) {
+            for (let attempt = 0; attempt < 4; attempt += 1) {
+              const { data: createdProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .ilike('email', normalizedEmail)
+                .maybeSingle()
+
+              if (createdProfile) {
+                resetCreateForm()
+                setToastMessage('Пользователь создан.')
+                return
+              }
+
+              if (attempt < 3) {
+                await new Promise((resolve) => window.setTimeout(resolve, 500))
+              }
+            }
+          }
+
+          setCreateError(getAdminAuthErrorMessage(error.message))
+        },
       }
     )
   }
