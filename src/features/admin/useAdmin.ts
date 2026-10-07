@@ -446,11 +446,31 @@ export function useAssignInstructor() {
         .maybeSingle()
 
       if (error) throw error
-      return data
+
+      const { data: instructor } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', instructorId)
+        .maybeSingle()
+
+      const { error: notificationError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: studentId,
+          title: 'Назначен инструктор',
+          message: instructor?.full_name
+            ? `Вам назначен инструктор: ${instructor.full_name}.`
+            : 'Вам назначен инструктор.',
+          messageType: 'notification',
+          allowReply: false,
+        },
+      })
+
+      return { data, notificationWarning: notificationError?.message ?? null }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instructor-students'] })
       queryClient.invalidateQueries({ queryKey: ['my-instructors'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-notification-threads'] })
     },
   })
 }
