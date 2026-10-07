@@ -119,6 +119,8 @@ export function useDrivingSlots() {
       if (error) throw error
       return (data ?? []) as DrivingSlot[]
     },
+    refetchOnWindowFocus: true,
+    refetchInterval: 3000,
   })
 }
 
