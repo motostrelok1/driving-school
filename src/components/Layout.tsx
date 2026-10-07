@@ -15,6 +15,7 @@ import {
   CreditCard,
   MessageSquare,
   ListTodo,
+  UsersRound,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
@@ -86,6 +87,12 @@ const navItems: NavItem[] = [
     label: 'Пользователи',
     href: '/admin/users',
     icon: Users,
+    roles: ['admin'],
+  },
+  {
+    label: 'Группы',
+    href: '/admin/groups',
+    icon: UsersRound,
     roles: ['admin'],
   },
   {
