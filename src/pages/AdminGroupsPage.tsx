@@ -10,8 +10,8 @@ import { supabase } from '@/lib/supabase'
 import type { Group } from '@/types'
 
 export function AdminGroupsPage() {
-  const { data: groups = [], isLoading: groupsLoading } = useGroups()
-  const { data: students = [], isLoading: studentsLoading } = useStudents()
+  const { data: groups = [], isLoading: groupsLoading, refetch: refetchGroups } = useGroups()
+  const { data: students = [], isLoading: studentsLoading, refetch: refetchStudents } = useStudents()
   const createGroup = useCreateGroup()
   const queryClient = useQueryClient()
 
@@ -34,11 +34,17 @@ export function AdminGroupsPage() {
 
   const filteredStudents = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('ru')
+    const existingGroupIds = new Set(groups.map((group) => group.id))
+
     return [...students]
-      .filter((student) => !student.group_id || student.group_id === editingGroup?.id)
+      .filter((student) =>
+        !student.group_id
+        || student.group_id === editingGroup?.id
+        || !existingGroupIds.has(student.group_id)
+      )
       .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ru'))
       .filter((student) => !query || (student.full_name || student.email || '').toLocaleLowerCase('ru').includes(query))
-  }, [students, search, editingGroup])
+  }, [students, groups, search, editingGroup])
 
   function resetCreate() {
     setIsCreateOpen(false)
@@ -84,21 +90,26 @@ export function AdminGroupsPage() {
   }
 
   async function deleteGroup(group: Group, studentCount: number) {
-    if (studentCount > 0 || deletingGroupId) return
-    if (!window.confirm(`Удалить группу «${group.name}»? Это действие нельзя отменить.`)) return
+    if (deletingGroupId) return
+
+    const confirmation = studentCount > 0
+      ? `Удалить группу «${group.name}»? ${studentCount} ученик(а/ов) станут без группы.`
+      : `Удалить группу «${group.name}»? Это действие нельзя отменить.`
+
+    if (!window.confirm(confirmation)) return
 
     setDeletingGroupId(group.id)
     setError(null)
     try {
-      const { error: deleteError } = await supabase.rpc('delete_empty_group', {
+      const { error: deleteError } = await supabase.rpc('delete_group_and_unassign', {
         target_group_id: group.id,
       })
       if (deleteError) throw deleteError
 
       if (expandedGroupId === group.id) setExpandedGroupId(null)
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['groups'] }),
-        queryClient.invalidateQueries({ queryKey: ['students'] }),
+        refetchGroups(),
+        refetchStudents(),
         queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
       ])
     } catch (err) {
@@ -172,8 +183,8 @@ export function AdminGroupsPage() {
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['groups'] }),
-        queryClient.invalidateQueries({ queryKey: ['students'] }),
+        refetchGroups(),
+        refetchStudents(),
         queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
       ])
 
@@ -251,15 +262,15 @@ export function AdminGroupsPage() {
                         size="sm"
                         variant="danger"
                         onClick={() => void deleteGroup(group, groupStudents.length)}
-                        disabled={groupStudents.length > 0 || deletingGroupId === group.id}
+                        disabled={deletingGroupId === group.id}
                         isLoading={deletingGroupId === group.id}
-                        title={groupStudents.length > 0 ? 'Сначала уберите всех учеников из группы' : 'Удалить группу'}
+                        title={groupStudents.length > 0 ? 'Удалить группу и оставить учеников без группы' : 'Удалить группу'}
                       >
                         <Trash2 className="mr-1.5 h-4 w-4" />Удалить
                       </Button>
                     </div>
                   </div>
-                  {groupStudents.length > 0 ? <p className="mb-2 text-xs text-muted-foreground">Удаление группы доступно только после удаления всех учеников из её состава.</p> : null}
+                  {groupStudents.length > 0 ? <p className="mb-2 text-xs text-muted-foreground">При удалении группы её ученики автоматически станут без группы.</p> : null}
                   {groupStudents.length === 0 ? <p className="text-sm text-muted-foreground">В группе пока нет учеников.</p> :
                     <div className="space-y-1">
                       {groupStudents.map((student) => <div key={student.id} className="rounded-md bg-white px-3 py-2 text-sm">{student.full_name || student.email || student.id}</div>)}
