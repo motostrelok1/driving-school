@@ -14,6 +14,7 @@ import {
   BookOpen,
   CreditCard,
   MessageSquare,
+  ListTodo,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
@@ -91,6 +92,12 @@ const navItems: NavItem[] = [
     label: 'Переписка',
     href: '/admin/messages',
     icon: MessageSquare,
+    roles: ['admin'],
+  },
+  {
+    label: 'Задачи',
+    href: '/admin/tasks',
+    icon: ListTodo,
     roles: ['admin'],
   },
   {
