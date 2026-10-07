@@ -104,6 +104,11 @@ const AdminUsersPage = lazy(() =>
     default: module.AdminUsersPage,
   }))
 )
+const AdminGroupsPage = lazy(() =>
+  import('@/pages/AdminGroupsPage').then((module) => ({
+    default: module.AdminGroupsPage,
+  }))
+)
 const AdminSchedulePage = lazy(() =>
   import('@/pages/AdminSchedulePage').then((module) => ({
     default: module.AdminSchedulePage,
@@ -362,6 +367,16 @@ function App() {
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Layout>
                     <AdminUsersPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/groups"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Layout>
+                    <AdminGroupsPage />
                   </Layout>
                 </ProtectedRoute>
               }
