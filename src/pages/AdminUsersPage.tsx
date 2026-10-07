@@ -25,6 +25,7 @@ import {
   DollarSign,
   KeyRound,
   MessageSquare,
+  History as HistoryIcon,
   Pencil,
   Plus,
   Search,
@@ -595,46 +596,35 @@ export function AdminUsersPage() {
                         </div>
                       ) : (
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => startEdit(user)}
-                          >
-                            <UserCog className="mr-1.5 h-4 w-4" />
-                            Изменить роль
+                          <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="Изменить роль" title="Изменить роль" onClick={() => startEdit(user)}>
+                            <UserCog className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
+                            className="h-8 w-8 px-0"
                             disabled={!user.email}
+                            aria-label="Сбросить пароль"
+                            title="Сбросить пароль"
                             onClick={() => {
                               setResetPasswordError(null)
                               setUserToResetPassword(user)
                             }}
                           >
-                            <KeyRound className="mr-1.5 h-4 w-4" />
-                            Сбросить пароль
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="Отправить сообщение" title="Отправить сообщение" onClick={() => openMessage(user)}>
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label="История сообщений" title="История сообщений" onClick={() => setUserMessageHistory(user)}>
+                            <HistoryIcon className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => openMessage(user)}
-                          >
-                            <MessageSquare className="mr-1.5 h-4 w-4" />
-                            Сообщение
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setUserMessageHistory(user)}
-                          >
-                            История
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-200 bg-white text-red-800 hover:bg-red-100"
+                            className="h-8 w-8 border-red-200 bg-white px-0 text-red-800 hover:bg-red-100"
                             aria-label="Удалить пользователя"
+                            title="Удалить пользователя"
                             onClick={() => {
                               setDeleteError(null)
                               setUserToDelete(user)
@@ -645,7 +635,9 @@ export function AdminUsersPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="h-8 w-8 px-0"
                             aria-label="Изменить данные пользователя"
+                            title="Изменить данные пользователя"
                             onClick={() => openProfileEdit(user)}
                           >
                             <Pencil className="h-4 w-4" />
