@@ -11,6 +11,7 @@ import {
   useStudentFinance,
   useUpsertStudentFinance,
   useAdminUserMessageHistory,
+  useGroups,
 } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -77,6 +78,7 @@ export function AdminUsersPage() {
   const { user: currentUser } = useAuth()
   const { data: users, isLoading } = useAllUsers()
   const { data: instructors } = useInstructors()
+  const { data: groups = [] } = useGroups()
   const updateProfile = useUpdateProfile()
   const assignInstructor = useAssignInstructor()
   const deleteProfile = useDeleteProfile()
@@ -751,6 +753,12 @@ export function AdminUsersPage() {
               const isExpanded = expandedUserIds.includes(user.id)
               const isCurrentAdmin =
                 user.id === currentUser?.id && user.role === 'admin'
+              const userGroup = user.group_id
+                ? groups.find((group) => group.id === user.group_id)
+                : null
+              const groupLabel = user.role === 'student'
+                ? (userGroup?.name || 'Без группы')
+                : null
 
               return (
                 <div
@@ -767,6 +775,11 @@ export function AdminUsersPage() {
                       <span className="block truncate font-medium text-primary">
                         {user.full_name || 'Без имени'}
                       </span>
+                      {groupLabel ? (
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          Группа: {groupLabel}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
                       <Badge variant={isCurrentAdmin ? 'danger' : 'secondary'}>
