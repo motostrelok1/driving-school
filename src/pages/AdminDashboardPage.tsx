@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { useAllUsers } from '@/features/admin/useAdmin'
+import { useAllUsers, useGroups } from '@/features/admin/useAdmin'
 import { supabase } from '@/lib/supabase'
-import { Users, GraduationCap, Car, Shield, FileText, ListTodo } from 'lucide-react'
+import { Users, GraduationCap, Car, Shield, FileText, ListTodo, UsersRound } from 'lucide-react'
 
 export function AdminDashboardPage() {
   const { data: users } = useAllUsers()
+  const { data: groups = [] } = useGroups()
   const { data: documentTasks = [] } = useQuery({
     queryKey: ['admin-document-tasks'],
     queryFn: async () => {
@@ -69,6 +70,30 @@ export function AdminDashboardPage() {
         ))}
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UsersRound className="h-5 w-5" />
+              Группы
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              to="/admin/groups"
+              className="flex items-center justify-between gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-muted"
+            >
+              <div>
+                <p className="font-medium text-primary">Учебные группы</p>
+                <p className="text-sm text-muted-foreground">Создание групп и распределение учеников</p>
+              </div>
+              <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-muted px-2 text-sm font-bold text-muted-foreground">
+                {groups.length}
+              </span>
+            </Link>
+          </CardContent>
+        </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -96,6 +121,7 @@ export function AdminDashboardPage() {
           </Link>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
