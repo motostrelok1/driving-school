@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdminUserMessageHistory, useAllUsers } from '@/features/admin/useAdmin'
 import { Button } from '@/components/ui/Button'
@@ -65,6 +65,7 @@ export function AdminMessagesPage() {
   const [conversationLoading, setConversationLoading] = useState(false)
   const [adminReply, setAdminReply] = useState('')
   const [showGroupParticipants, setShowGroupParticipants] = useState(false)
+  const conversationEndRef = useRef<HTMLDivElement | null>(null)
 
   const [newChatOpen, setNewChatOpen] = useState(false)
   const [newChatSearch, setNewChatSearch] = useState('')
@@ -268,6 +269,13 @@ export function AdminMessagesPage() {
 
     setConversationLoading(false)
   }
+
+  useEffect(() => {
+    if (!activeChat || conversationLoading) return
+    requestAnimationFrame(() => {
+      conversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    })
+  }, [activeChat, conversation, conversationLoading])
 
   async function sendAdminReply() {
     if (!activeChat || !adminReply.trim() || isSending) return
@@ -715,6 +723,7 @@ export function AdminMessagesPage() {
               </div>
             </div>
           })}
+          <div ref={conversationEndRef} />
         </div>
         <div className="border-t border-border bg-white p-3">
           <div className="flex items-end gap-2">
