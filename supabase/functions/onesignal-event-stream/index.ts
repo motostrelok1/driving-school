@@ -19,6 +19,23 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function normalizeEventDate(value?: string) {
+  const raw = value?.trim();
+  if (!raw) return new Date().toISOString();
+
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const numeric = Number(raw);
+    const milliseconds = numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
+    const date = new Date(milliseconds);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) return date.toISOString();
+
+  return new Date().toISOString();
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -56,7 +73,7 @@ Deno.serve(async (req) => {
 
     if (existing) return json({ success: true, duplicate: true });
 
-    const eventAt = payload.event_datetime?.trim() || new Date().toISOString();
+    const eventAt = normalizeEventDate(payload.event_datetime);
     const recipientId = externalId || null;
 
     const { error: insertError } = await admin
