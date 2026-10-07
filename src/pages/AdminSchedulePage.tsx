@@ -15,6 +15,7 @@ import { LessonList } from '@/features/schedule/LessonList'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { DrivingSlot } from '@/types'
+import { supabase } from '@/lib/supabase'
 
 const durationOptions = [
   { label: '1ч', value: 60 },
@@ -70,6 +71,7 @@ export function AdminSchedulePage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isBookingSlot, setIsBookingSlot] = useState(false)
   const [bookingStudentId, setBookingStudentId] = useState('')
+  const [notificationWarning, setNotificationWarning] = useState<string | null>(null)
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStartDate, index)),
@@ -79,6 +81,26 @@ export function AdminSchedulePage() {
   const selectedDateLabel = format(new Date(`${form.selectedDate}T00:00:00`), 'd MMMM, EEEE', {
     locale: ru,
   })
+
+  async function sendStudentNotification(studentId: string, title: string, message: string) {
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: studentId,
+        title,
+        message,
+        messageType: 'notification',
+        allowReply: false,
+      },
+    })
+
+    if (error) {
+      setNotificationWarning('Изменение расписания сохранено, но push-уведомление отправить не удалось.')
+      return false
+    }
+
+    setNotificationWarning(null)
+    return true
+  }
 
   function createSlot(hourValue: string) {
     if (!form.instructorId || !form.selectedDate) return
@@ -115,7 +137,15 @@ export function AdminSchedulePage() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          if (activeSlot.student_id && activeSlot.status === 'booked') {
+            const newStart = new Date(`${moveDate}T${moveHour}:00`)
+            await sendStudentNotification(
+              activeSlot.student_id,
+              'Занятие перенесено',
+              `Ваше занятие перенесено на ${format(newStart, 'd MMMM, HH:mm', { locale: ru })}.`
+            )
+          }
           setActiveSlot(null)
           setIsMovingSlot(false)
         },
@@ -126,8 +156,16 @@ export function AdminSchedulePage() {
   function deleteSlot() {
     if (!activeSlot) return
 
+    const cancelledSlot = activeSlot
     deleteDrivingSlot.mutate(activeSlot.id, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        if (cancelledSlot.student_id && cancelledSlot.status === 'booked') {
+          await sendStudentNotification(
+            cancelledSlot.student_id,
+            'Занятие отменено',
+            `Занятие ${format(new Date(cancelledSlot.start_at), 'd MMMM, HH:mm', { locale: ru })} отменено.`
+          )
+        }
         setActiveSlot(null)
         setIsDeleteConfirmOpen(false)
       },
@@ -137,6 +175,8 @@ export function AdminSchedulePage() {
   function bookSlot() {
     if (!activeSlot || !bookingStudentId) return
 
+    const previousStudentId = activeSlot.student_id
+    const bookedSlot = activeSlot
     updateDrivingSlot.mutate(
       {
         id: activeSlot.id,
@@ -146,7 +186,23 @@ export function AdminSchedulePage() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          if (previousStudentId && previousStudentId !== bookingStudentId) {
+            await sendStudentNotification(
+              previousStudentId,
+              'Запись на занятие отменена',
+              `Ваша запись на ${format(new Date(bookedSlot.start_at), 'd MMMM, HH:mm', { locale: ru })} отменена администратором.`
+            )
+          }
+
+          if (previousStudentId !== bookingStudentId) {
+            await sendStudentNotification(
+              bookingStudentId,
+              'Назначено занятие',
+              `Вам назначено занятие ${format(new Date(bookedSlot.start_at), 'd MMMM, HH:mm', { locale: ru })}.`
+            )
+          }
+
           setActiveSlot(null)
           setIsBookingSlot(false)
           setBookingStudentId('')
@@ -158,6 +214,7 @@ export function AdminSchedulePage() {
   function reserveSlot() {
     if (!activeSlot) return
 
+    const reservedSlot = activeSlot
     updateDrivingSlot.mutate(
       {
         id: activeSlot.id,
@@ -167,7 +224,16 @@ export function AdminSchedulePage() {
         },
       },
       {
-        onSuccess: () => setActiveSlot(null),
+        onSuccess: async () => {
+          if (reservedSlot.student_id && reservedSlot.status === 'booked') {
+            await sendStudentNotification(
+              reservedSlot.student_id,
+              'Запись на занятие отменена',
+              `Ваша запись на ${format(new Date(reservedSlot.start_at), 'd MMMM, HH:mm', { locale: ru })} отменена администратором.`
+            )
+          }
+          setActiveSlot(null)
+        },
       }
     )
   }
@@ -184,6 +250,12 @@ export function AdminSchedulePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-primary">Управление расписанием</h1>
+
+      {notificationWarning ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {notificationWarning}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
