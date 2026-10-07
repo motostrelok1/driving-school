@@ -497,7 +497,7 @@ function InstructorCard({
 }
 
 export function StudentPracticePage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { data: lessons, isLoading: isLessonsLoading } = useMyLessons()
   const { data: instructors, isLoading: isInstructorsLoading } = useAvailableInstructors()
   const { data: selectedInstructors, isLoading: isSelectedInstructorsLoading } = useMyInstructors()
@@ -509,6 +509,23 @@ export function StudentPracticePage() {
   const [isChangeWarningOpen, setIsChangeWarningOpen] = useState(false)
   const [chosenInstructorId, setChosenInstructorId] = useState<string | null>(null)
   const [changeInstructorError, setChangeInstructorError] = useState<string | null>(null)
+
+  if (profile && !profile.driving_enabled) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-primary">Вождение</h1>
+        <Card>
+          <CardHeader><CardTitle>Вождение недоступно</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              Доступ к разделу «Вождение» ещё не открыт администратором.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   const completedPracticeInstructorIds = useMemo(
     () => new Set((lessons ?? []).filter((lesson: LessonWithDetails) => lesson.type === 'practice' && lesson.status === 'completed').map((lesson) => lesson.instructor_id).filter(Boolean)),
     [lessons]
