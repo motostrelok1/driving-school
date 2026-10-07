@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Pencil, Plus, Search, Users, X } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -25,6 +25,7 @@ export function AdminGroupsPage() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null)
 
   const sortedGroups = useMemo(
     () => [...groups].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
@@ -80,6 +81,31 @@ export function AdminGroupsPage() {
         ? current.filter((id) => id !== studentId)
         : [...current, studentId]
     )
+  }
+
+  async function deleteGroup(group: Group, studentCount: number) {
+    if (studentCount > 0 || deletingGroupId) return
+    if (!window.confirm(`Удалить группу «${group.name}»? Это действие нельзя отменить.`)) return
+
+    setDeletingGroupId(group.id)
+    setError(null)
+    try {
+      const { error: deleteError } = await supabase.rpc('delete_empty_group', {
+        target_group_id: group.id,
+      })
+      if (deleteError) throw deleteError
+
+      if (expandedGroupId === group.id) setExpandedGroupId(null)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['groups'] }),
+        queryClient.invalidateQueries({ queryKey: ['students'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+      ])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось удалить группу.')
+    } finally {
+      setDeletingGroupId(null)
+    }
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -217,10 +243,23 @@ export function AdminGroupsPage() {
                       <strong className="text-sm">Ученики</strong>
                       <Badge variant="secondary">{groupStudents.length}</Badge>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => openEdit(group)}>
-                      <Pencil className="mr-1.5 h-4 w-4" />Редактировать
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(group)}>
+                        <Pencil className="mr-1.5 h-4 w-4" />Редактировать
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => void deleteGroup(group, groupStudents.length)}
+                        disabled={groupStudents.length > 0 || deletingGroupId === group.id}
+                        isLoading={deletingGroupId === group.id}
+                        title={groupStudents.length > 0 ? 'Сначала уберите всех учеников из группы' : 'Удалить группу'}
+                      >
+                        <Trash2 className="mr-1.5 h-4 w-4" />Удалить
+                      </Button>
+                    </div>
                   </div>
+                  {groupStudents.length > 0 ? <p className="mb-2 text-xs text-muted-foreground">Удаление группы доступно только после удаления всех учеников из её состава.</p> : null}
                   {groupStudents.length === 0 ? <p className="text-sm text-muted-foreground">В группе пока нет учеников.</p> :
                     <div className="space-y-1">
                       {groupStudents.map((student) => <div key={student.id} className="rounded-md bg-white px-3 py-2 text-sm">{student.full_name || student.email || student.id}</div>)}
