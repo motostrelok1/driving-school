@@ -121,3 +121,51 @@ export interface LessonWithDetails extends Lesson {
   student?: { full_name: string | null } | null
   instructor?: { full_name: string | null } | null
 }
+
+export type TheoryAssessmentKind = 'credit' | 'internal_exam'
+
+export interface TheoryAssessment {
+  id: string
+  student_id: string
+  created_by: string | null
+  kind: TheoryAssessmentKind
+  rules_version: string
+  topic_ids: string[]
+  question_count: number
+  time_limit_minutes: number
+  max_errors: number
+  opens_at: string
+  deadline_at: string
+  cancelled_at: string | null
+  created_at: string
+}
+
+export interface TheoryAssessmentAttempt {
+  id: string
+  assessment_id: string
+  student_id: string
+  rules_version: string
+  question_count: number
+  time_limit_minutes: number
+  max_errors: number
+  question_snapshot: Array<Omit<TicketQuestion, 'correctAnswer' | 'hint'> & { key: string; ticketNumber: number }>
+  started_at: string
+  expires_at: string
+  finished_at: string | null
+  status: 'running' | 'completed' | 'expired'
+  correct_count: number | null
+  error_count: number | null
+  elapsed_seconds: number | null
+  passed: boolean | null
+}
+
+export interface TheoryAttemptAnswer {
+  id: string
+  attempt_id: string
+  question_index: number
+  selected_answer: number
+  answered_at: string
+  is_correct: boolean
+}
+
+export type TheoryAssessmentAttemptSummary = Omit<TheoryAssessmentAttempt, 'question_snapshot'>

@@ -19,9 +19,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
+import { AdminTheoryAssessmentModal } from '@/features/theory/AdminTheoryAssessmentModal'
 import type { Profile, UserRole } from '@/types'
 import {
   CalendarDays,
+  ClipboardCheck,
   CircleGauge,
   ChevronDown,
   DollarSign,
@@ -134,6 +136,7 @@ export function AdminUsersPage() {
   const [isSendingMessage, setIsSendingMessage] = useState(false)
   const [userMessageHistory, setUserMessageHistory] = useState<Profile | null>(null)
   const [userToDocuments, setUserToDocuments] = useState<Profile | null>(null)
+  const [userToAssessment, setUserToAssessment] = useState<Profile | null>(null)
   const [documentsTab, setDocumentsTab] = useState<'passport' | 'snils' | 'medical'>('passport')
   const [documentForm, setDocumentForm] = useState({
     passport_series: '',
@@ -993,6 +996,10 @@ export function AdminUsersPage() {
                           </Button>
                           {user.role === 'student' ? (
                             <>
+                              <Button size="sm" variant="outline" className="h-8 w-8 px-0"
+                                aria-label="Тестирование" title="Тестирование" onClick={() => setUserToAssessment(user)}>
+                                <ClipboardCheck className="h-4 w-4" />
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1279,6 +1286,10 @@ export function AdminUsersPage() {
             </div>
           </form>
         </div>
+      ) : null}
+
+      {userToAssessment ? (
+        <AdminTheoryAssessmentModal key={userToAssessment.id} student={userToAssessment} onClose={() => setUserToAssessment(null)} />
       ) : null}
 
       {userToResetPassword ? (
