@@ -42,7 +42,7 @@ const StudentTheoryPage = lazy(() =>
   }))
 )
 const StudentTheoryTestingPage = lazy(() =>
-  import('@/pages/StudentTheorySectionPage').then((module) => ({
+  import('@/pages/StudentTheoryTestingPage').then((module) => ({
     default: module.StudentTheoryTestingPage,
   }))
 )
@@ -124,6 +124,9 @@ const AdminPddPage = lazy(() =>
   import('@/pages/AdminPddPage').then((module) => ({
     default: module.AdminPddPage,
   }))
+)
+const AdminTheoryBankPage = lazy(() =>
+  import('@/pages/AdminTheoryBankPage').then((module) => ({ default: module.AdminTheoryBankPage }))
 )
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage }))
@@ -418,6 +421,9 @@ function App() {
               }
             />
 
+            <Route path="/admin/theory-bank" element={
+              <ProtectedRoute allowedRoles={['admin']}><Layout><AdminTheoryBankPage /></Layout></ProtectedRoute>
+            } />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </Suspense>

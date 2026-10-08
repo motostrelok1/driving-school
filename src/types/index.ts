@@ -137,6 +137,7 @@ export interface TheoryAssessment {
   opens_at: string
   deadline_at: string
   cancelled_at: string | null
+  notification_sent_at?: string | null
   created_at: string
 }
 
@@ -169,3 +170,32 @@ export interface TheoryAttemptAnswer {
 }
 
 export type TheoryAssessmentAttemptSummary = Omit<TheoryAssessmentAttempt, 'question_snapshot'>
+
+export interface TheoryAttemptPayload {
+  server_time: string
+  attempt: TheoryAssessmentAttempt
+  answers: Array<Pick<TheoryAttemptAnswer, 'question_index' | 'selected_answer' | 'answered_at'>>
+}
+
+export interface TheoryAssessmentOverview {
+  server_time: string
+  items: Array<{
+    assessment: TheoryAssessment
+    attempt: TheoryAssessmentAttemptSummary | null
+    available_questions: number
+  }>
+}
+
+export interface TheoryBankQuestion {
+  id: string
+  ticket_number: number
+  question_number: number
+  question_text: string
+  image_path: string | null
+  answers: TicketAnswer[]
+  correct_answer: number | null
+  topic_ids: string[]
+  approved_at: string | null
+  approved_by: string | null
+  updated_at: string
+}

@@ -71,15 +71,6 @@ const courseVideos = [
   },
 ]
 
-export function StudentTheoryTestingPage() {
-  return (
-    <TheoryPlaceholder
-      title="Тестирование"
-      description="Промежуточные зачеты и внутренние экзамены"
-    />
-  )
-}
-
 export function StudentTheoryCoursePage() {
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(false)
   const [isPddOpen, setIsPddOpen] = useState(false)

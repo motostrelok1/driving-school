@@ -11,6 +11,7 @@ import {
 import {
   useAssignTheoryAssessment, useCancelTheoryAssessment,
   useTheoryAssessments, useTheoryAssessmentAttempts,
+  useNotifyTheoryAssignment,
 } from './useTheoryAssessments'
 
 export function AdminTheoryAssessmentModal({ student, onClose }: { student: Profile; onClose: () => void }) {
@@ -21,6 +22,7 @@ export function AdminTheoryAssessmentModal({ student, onClose }: { student: Prof
   const { data: attempts = [], isLoading: attemptsLoading, error: attemptsError, refetch: refetchAttempts } = useTheoryAssessmentAttempts(student.id)
   const assign = useAssignTheoryAssessment()
   const cancel = useCancelTheoryAssessment(student.id)
+  const notify = useNotifyTheoryAssignment(student.id)
   const [kind, setKind] = useState<TheoryAssessmentKind | null>(null)
   const [topicIds, setTopicIds] = useState<string[]>([])
   const [questionCount, setQuestionCount] = useState('20')
@@ -31,7 +33,7 @@ export function AdminTheoryAssessmentModal({ student, onClose }: { student: Prof
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [cancelId, setCancelId] = useState<string | null>(null)
-  const busy = assign.isPending || cancel.isPending
+  const busy = assign.isPending || cancel.isPending || notify.isPending
   const loading = isLoading || attemptsLoading
   const queryError = loadError || attemptsError
 
@@ -67,7 +69,7 @@ export function AdminTheoryAssessmentModal({ student, onClose }: { student: Prof
         setError('Крайний срок должен быть позже открытия и текущего времени.')
         return
       }
-      await assign.mutateAsync({
+      const result = await assign.mutateAsync({
         id: assignmentId.current, studentId: student.id, kind,
         topicIds: kind === 'credit' ? topicIds : [], ...rules,
         opensAt: opensAtIso, deadlineAt: deadlineAtIso,
@@ -75,11 +77,24 @@ export function AdminTheoryAssessmentModal({ student, onClose }: { student: Prof
       assignmentId.current = crypto.randomUUID()
       setKind(null)
       setSuccess('Тестирование назначено. Настройки и сроки сохранены.')
+      if (result.notificationWarning) setError(result.notificationWarning)
     } catch (cause) {
       setError(getAssessmentError(cause))
     } finally {
       submitting.current = false
     }
+  }
+
+  async function sendNotification(id: string) {
+    if (submitting.current || busy) return
+    submitting.current = true
+    setError(null); setSuccess(null)
+    try {
+      const warning = await notify.mutateAsync(id)
+      if (warning) setError(warning)
+      else setSuccess('Уведомление ученику отправлено.')
+    } catch (cause) { setError(getAssessmentError(cause)) }
+    finally { submitting.current = false }
   }
 
   async function confirmCancel(id: string) {
@@ -128,6 +143,7 @@ export function AdminTheoryAssessmentModal({ student, onClose }: { student: Prof
             Назначить {value === 'credit' ? 'зачёт' : 'экзамен'}
           </Button>
         ))}
+        <a href="/admin/theory-bank" className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-sm hover:bg-muted">Банк вопросов</a>
       </div>
 
       {kind ? (
@@ -190,6 +206,10 @@ export function AdminTheoryAssessmentModal({ student, onClose }: { student: Prof
               </div>
               <p>{assessment.question_count} вопросов · {assessment.time_limit_minutes} мин · ошибок не более {assessment.max_errors}</p>
               <p className="text-muted-foreground">{formatAssessmentDate(assessment.opens_at)} — {formatAssessmentDate(assessment.deadline_at)} (МСК)</p>
+              {!assessment.cancelled_at && !expired && !attempt ? (
+                assessment.notification_sent_at ? <p className="text-xs text-muted-foreground">Уведомление отправлено.</p>
+                  : <Button size="sm" variant="outline" disabled={busy} onClick={() => void sendNotification(assessment.id)}>Уведомить ученика</Button>
+              ) : null}
               <details>
                 <summary className="cursor-pointer text-muted-foreground">{assessment.kind === 'internal_exam' ? 'Все темы' : `Темы: ${assessment.topic_ids.length}`}</summary>
                 <p className="mt-1">{(assessment.kind === 'internal_exam' ? pddTopics : pddTopics.filter((topic) => assessment.topic_ids.includes(topic.id))).map((topic) => topic.title).join('; ')}</p>
