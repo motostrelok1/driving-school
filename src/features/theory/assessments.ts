@@ -30,10 +30,10 @@ export function moscowInputToIso(value: string) {
   return new Date(`${value}:00+03:00`).toISOString()
 }
 
-export function getAssessmentError(error: unknown) {
+export function getAssessmentError(error: unknown, migration = '0034_theory_assessments.sql') {
   const details = error as { code?: string; message?: string } | null
   if (details?.code === '42P01' || details?.code === '42883' || details?.code === 'PGRST202' || details?.code === 'PGRST205') {
-    return 'Тестирование пока недоступно. Примените миграцию 0034_theory_assessments.sql в Supabase.'
+    return `Тестирование пока недоступно. Примените миграцию ${migration} в Supabase.`
   }
   if (details?.code === '23514' || details?.code === '23502') {
     return 'Проверьте темы, количество вопросов, время, допустимые ошибки и сроки.'

@@ -115,6 +115,12 @@ const navItems: NavItem[] = [
     icon: BookOpen,
     roles: ['admin'],
   },
+  {
+    label: 'Банк вопросов',
+    href: '/admin/theory-bank',
+    icon: BookOpen,
+    roles: ['admin'],
+  },
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {

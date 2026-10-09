@@ -43,6 +43,27 @@ export interface AssignTheoryAssessmentInput {
   deadlineAt: string
 }
 
+async function notifyAssignment(assessmentId: string) {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-theory-assignment', { body: { assessmentId } })
+    return error ? 'Назначение сохранено, но уведомление не отправлено. Проверьте функцию send-theory-assignment и повторите отправку.'
+      : data?.success ? null : data?.warning || 'Не удалось подтвердить отправку уведомления.'
+  } catch {
+    return 'Назначение сохранено. Не удалось отправить уведомление; повторите отправку после восстановления связи.'
+  }
+}
+
+export function useNotifyTheoryAssignment(studentId: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: notifyAssignment,
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['theory-assessments', studentId] })
+      client.invalidateQueries({ queryKey: ['admin-user-message-history', studentId] })
+    },
+  })
+}
+
 export function useAssignTheoryAssessment() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -54,10 +75,14 @@ export function useAssignTheoryAssessment() {
         p_opens_at: input.opensAt, p_deadline_at: input.deadlineAt,
       })
       if (error) throw error
-      return data as TheoryAssessment
+      const assessment = (Array.isArray(data) ? data[0] : data) as TheoryAssessment
+      if (!assessment?.id) throw new Error('Не удалось подтвердить сохранение назначения.')
+      const notificationWarning = await notifyAssignment(assessment.id)
+      return { assessment, notificationWarning }
     },
     onSuccess: (_data, input) => {
       queryClient.invalidateQueries({ queryKey: ['theory-assessments', input.studentId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-user-message-history', input.studentId] })
     },
   })
 }

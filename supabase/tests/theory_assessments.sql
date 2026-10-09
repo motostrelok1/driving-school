@@ -89,7 +89,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000022', true);
 SELECT pg_temp.assert_true((SELECT count(*) = 2 FROM public.theory_assessments), 'student sees own assignments');
 SELECT pg_temp.assert_true((SELECT count(id) = 1 FROM public.theory_assessment_attempts), 'student sees own attempt');
-SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.theory_attempt_answers), 'student sees own answer');
+SELECT pg_temp.assert_true((SELECT count(id) = 1 FROM public.theory_attempt_answers), 'student sees own answer');
 SELECT pg_temp.expect_error($q$SELECT answer_key FROM public.theory_assessment_attempts$q$, '42501');
 SELECT pg_temp.expect_error($q$SELECT * FROM public.theory_assessment_attempts$q$, '42501');
 SELECT pg_temp.expect_error($q$UPDATE public.theory_assessment_attempts SET passed = true$q$, '42501');
@@ -103,12 +103,12 @@ SELECT pg_temp.expect_error($q$SELECT public.admin_cancel_theory_assessment('000
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000033', true);
 SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.theory_assessments), 'second student isolation');
 SELECT pg_temp.assert_true((SELECT count(id) = 1 FROM public.theory_assessment_attempts), 'second student attempt isolation');
-SELECT pg_temp.assert_true((SELECT count(*) = 0 FROM public.theory_attempt_answers), 'no other student answers');
+SELECT pg_temp.assert_true((SELECT count(id) = 0 FROM public.theory_attempt_answers), 'no other student answers');
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000044', true);
 SELECT pg_temp.assert_true((SELECT count(*) = 0 FROM public.theory_assessments), 'instructor has no assignments');
 SELECT pg_temp.assert_true((SELECT count(id) = 0 FROM public.theory_assessment_attempts), 'instructor has no attempts');
-SELECT pg_temp.assert_true((SELECT count(*) = 0 FROM public.theory_attempt_answers), 'instructor has no answers');
+SELECT pg_temp.assert_true((SELECT count(id) = 0 FROM public.theory_attempt_answers), 'instructor has no answers');
 SELECT pg_temp.expect_error($q$SELECT public.admin_cancel_theory_assessment('00000000-0000-0000-0000-000000000103')$q$, 'P0001');
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000011', true);
