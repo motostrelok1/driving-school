@@ -430,49 +430,54 @@ export function useAssignInstructor() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({
-      instructorId,
-      studentId,
-    }: {
-      instructorId: string
-      studentId: string
-    }) => {
-      const { data, error } = await supabase
-        .from('instructor_students')
-        .upsert(
-          { instructor_id: instructorId, student_id: studentId },
-          { onConflict: 'instructor_id,student_id', ignoreDuplicates: true }
-        )
-        .select()
-        .maybeSingle()
-
+    mutationFn: async ({ instructorId, studentId }: { instructorId: string; studentId: string }) => {
+      const { data, error } = await supabase.rpc('reassign_student_instructor', {
+        target_student_id: studentId,
+        target_instructor_id: instructorId,
+      })
       if (error) throw error
 
+      const result = data as {
+        changed: boolean
+        replaced: boolean
+        cancelled_slots: { id: string; start_at: string }[]
+      }
+      if (!result.changed) return { changed: false, notificationWarning: null }
+
       const { data: instructor } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', instructorId)
-        .maybeSingle()
+        .from('profiles').select('full_name').eq('id', instructorId).maybeSingle()
 
-      const { error: notificationError } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          userId: studentId,
-          title: 'Назначен инструктор',
-          message: instructor?.full_name
-            ? `Вам назначен инструктор: ${instructor.full_name}.`
-            : 'Вам назначен инструктор.',
-          messageType: 'notification',
-          allowReply: false,
-        },
-      })
+      const warnings: string[] = []
+      async function notify(title: string, message: string) {
+        try {
+          const { error } = await supabase.functions.invoke('send-push-notification', {
+            body: { userId: studentId, title, message, messageType: 'notification', allowReply: false },
+          })
+          if (error) warnings.push(error.message)
+        } catch (error) {
+          warnings.push(error instanceof Error ? error.message : 'Ошибка отправки уведомления')
+        }
+      }
 
-      return { data, notificationWarning: notificationError?.message ?? null }
+      for (const slot of result.cancelled_slots ?? []) {
+        await notify(
+          'Занятие отменено',
+          `Ваше занятие ${new Date(slot.start_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} отменено в связи со сменой инструктора.`
+        )
+      }
+
+      await notify(
+        result.replaced ? 'Инструктор изменён' : 'Назначен инструктор',
+        `Вам назначен ${result.replaced ? 'новый ' : ''}инструктор: ${instructor?.full_name ?? 'инструктор по вождению'}.${result.cancelled_slots?.length ? ' Будущие занятия отменены, запишитесь на новые.' : ''}`
+      )
+      return { changed: true, notificationWarning: warnings.length ? warnings.join('; ') : null }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instructor-students'] })
       queryClient.invalidateQueries({ queryKey: ['my-instructors'] })
+      queryClient.invalidateQueries({ queryKey: ['my-students'] })
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
       queryClient.invalidateQueries({ queryKey: ['admin-notification-threads'] })
     },
   })
 }
-
