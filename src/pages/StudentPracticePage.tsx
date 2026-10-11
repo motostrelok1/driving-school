@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   useAvailableInstructors,
   useChooseInstructor,
+  useBeginInstructorChange,
   useCreateInstructorReview,
   useInstructorReviews,
   useMyInstructors,
 } from '@/features/instructors/useInstructorStudents'
 import {
-  useCancelMyFutureDrivingSlots,
   useDrivingSlots,
   useMyLessons,
   useUpdateDrivingSlot,
@@ -498,13 +498,13 @@ function InstructorCard({
 
 export function StudentPracticePage() {
   const { user, profile } = useAuth()
-  const { data: lessons, isLoading: isLessonsLoading } = useMyLessons()
-  const { data: instructors, isLoading: isInstructorsLoading } = useAvailableInstructors()
-  const { data: selectedInstructors, isLoading: isSelectedInstructorsLoading } = useMyInstructors()
-  const { data: drivingSlots, isLoading: isDrivingSlotsLoading } = useDrivingSlots()
+  const { data: lessons, isLoading: isLessonsLoading, isError: lessonsError, refetch: refetchLessons } = useMyLessons()
+  const { data: instructors, isLoading: isInstructorsLoading, isError: instructorsError, refetch: refetchInstructors } = useAvailableInstructors()
+  const { data: selectedInstructors, isLoading: isSelectedInstructorsLoading, isError: selectedInstructorsError, refetch: refetchSelectedInstructors } = useMyInstructors()
+  const { data: drivingSlots, isLoading: isDrivingSlotsLoading, isError: drivingSlotsError, refetch: refetchDrivingSlots } = useDrivingSlots()
   const chooseInstructor = useChooseInstructor()
   const updateDrivingSlot = useUpdateDrivingSlot()
-  const cancelMyFutureDrivingSlots = useCancelMyFutureDrivingSlots()
+  const beginInstructorChange = useBeginInstructorChange()
   const [isChangingInstructor, setIsChangingInstructor] = useState(false)
   const [isChangeWarningOpen, setIsChangeWarningOpen] = useState(false)
   const [chosenInstructorId, setChosenInstructorId] = useState<string | null>(null)
@@ -566,6 +566,21 @@ export function StudentPracticePage() {
         status: 'open',
       },
     })
+  }
+
+  if (lessonsError || instructorsError || selectedInstructorsError || drivingSlotsError) {
+    return (
+      <div className="space-y-4 p-4">
+        <h1 className="text-2xl font-bold text-primary">Вождение</h1>
+        <p role="alert">Не удалось загрузить данные раздела. Попробуйте повторить загрузку.</p>
+        <Button onClick={() => {
+          void refetchLessons()
+          void refetchInstructors()
+          void refetchSelectedInstructors()
+          void refetchDrivingSlots()
+        }}>Повторить загрузку</Button>
+      </div>
+    )
   }
 
   if (isLessonsLoading || isInstructorsLoading || isSelectedInstructorsLoading || isDrivingSlotsLoading) {
@@ -678,7 +693,7 @@ export function StudentPracticePage() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={cancelMyFutureDrivingSlots.isPending}
+                disabled={beginInstructorChange.isPending}
                 onClick={() => setIsChangeWarningOpen(false)}
               >
                 Отмена
@@ -687,24 +702,17 @@ export function StudentPracticePage() {
                 type="button"
                 className="border border-danger/30 bg-danger/10 text-danger hover:bg-danger/15"
                 variant="outline"
-                disabled={cancelMyFutureDrivingSlots.isPending}
+                disabled={beginInstructorChange.isPending}
                 onClick={() => {
                   setChangeInstructorError(null)
-                  const instructorId = selectedInstructor?.id
-                  if (!instructorId) {
-                    setIsChangeWarningOpen(false)
-                    setIsChangingInstructor(true)
-                    return
-                  }
-
-                  cancelMyFutureDrivingSlots.mutate(instructorId, {
+                  beginInstructorChange.mutate(undefined, {
                     onSuccess: () => {
                       setChosenInstructorId(null)
                       setIsChangeWarningOpen(false)
                       setIsChangingInstructor(true)
                     },
                     onError: (error) => {
-                      setChangeInstructorError(error instanceof Error ? error.message : 'Не удалось освободить будущие записи.')
+                      setChangeInstructorError(error instanceof Error ? error.message : 'Не удалось сменить инструктора.')
                     },
                   })
                 }}
