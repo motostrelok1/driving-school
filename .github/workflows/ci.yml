@@ -1,0 +1,35 @@
+name: Проверка PR
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-lint:
+    name: Сборка и линтер
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Получить код
+        uses: actions/checkout@v4
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Установить зависимости
+        run: npm ci
+      - name: Проверить линтер
+        run: npm run lint
+      - name: Проверить TypeScript и сборку
+        run: npm run build
