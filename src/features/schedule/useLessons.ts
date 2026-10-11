@@ -193,6 +193,7 @@ export function useUpdateDrivingSlot() {
       return data
     },
     onSuccess: () => {
+      void supabase.functions.invoke('send-driving-events').catch((error: unknown) => console.warn('Driving event delivery deferred', error))
       queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
     },
   })
