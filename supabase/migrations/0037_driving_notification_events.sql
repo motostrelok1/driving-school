@@ -38,3 +38,18 @@ CREATE TRIGGER trg_driving_slot_notification
 AFTER INSERT OR UPDATE ON public.driving_slots
 FOR EACH ROW EXECUTE FUNCTION public.queue_driving_slot_notification();
 REVOKE ALL ON FUNCTION public.queue_driving_slot_notification() FROM PUBLIC;
+
+-- Atomically claim jobs: multiple app tabs cannot deliver the same event twice.
+CREATE OR REPLACE FUNCTION public.claim_driving_notification_events(target_student_id UUID)
+RETURNS SETOF public.driving_notification_events LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.driving_notification_events e
+  SET status = 'processing'
+  WHERE e.id IN (
+    SELECT id FROM public.driving_notification_events
+    WHERE student_id = target_student_id AND status = 'pending'
+    ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 20
+  )
+  RETURNING e.*;
+$$;
+REVOKE ALL ON FUNCTION public.claim_driving_notification_events(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_driving_notification_events(UUID) TO service_role;
