@@ -54,6 +54,7 @@ export function useBeginInstructorChange() {
       return data as { cancelled_slots: { id: string; start_at: string }[] }
     },
     onSuccess: () => {
+      void supabase.functions.invoke('send-driving-events').catch((error: unknown) => console.warn('Driving event delivery deferred', error))
       queryClient.invalidateQueries({ queryKey: ['my-instructors'] })
       queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
     },
