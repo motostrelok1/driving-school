@@ -16,7 +16,8 @@ INSERT INTO public.profiles(id,role,full_name) VALUES
  ('a1020000-0000-0000-0000-000000000001','admin','Task Test Admin'),
  ('a1020000-0000-0000-0000-000000000002','student','Task Test Student'),
  ('a1020000-0000-0000-0000-000000000003','instructor','Task Test First Instructor'),
- ('a1020000-0000-0000-0000-000000000004','instructor','Task Test Second Instructor');
+ ('a1020000-0000-0000-0000-000000000004','instructor','Task Test Second Instructor')
+ON CONFLICT (id) DO UPDATE SET role=EXCLUDED.role, full_name=EXCLUDED.full_name;
 
 -- Initial assignment creates exactly one pending task.
 INSERT INTO public.instructor_students(student_id,instructor_id)
