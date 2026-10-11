@@ -29,32 +29,36 @@ export function useChooseInstructor() {
 
   return useMutation({
     mutationFn: async (instructorId: string) => {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) throw new Error('Not authenticated')
-
-      const { error: deleteError } = await supabase
-        .from('instructor_students')
-        .delete()
-        .eq('student_id', userData.user.id)
-
-      if (deleteError) throw deleteError
-
-      const { data, error } = await supabase
-        .from('instructor_students')
-        .insert({ instructor_id: instructorId, student_id: userData.user.id })
-        .select()
-        .single()
-
+      const { data, error } = await supabase.rpc('student_choose_instructor', {
+        target_instructor_id: instructorId,
+      })
       if (error) throw error
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-instructors'] })
       queryClient.invalidateQueries({ queryKey: ['available-instructors'] })
+      queryClient.invalidateQueries({ queryKey: ['my-students'] })
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
     },
   })
 }
 
+export function useBeginInstructorChange() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('student_begin_instructor_change')
+      if (error) throw error
+      return data as { cancelled_slots: { id: string; start_at: string }[] }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-instructors'] })
+      queryClient.invalidateQueries({ queryKey: ['driving-slots'] })
+    },
+  })
+}
 
 export function useInstructorReviews(instructorId: string) {
   return useQuery({
