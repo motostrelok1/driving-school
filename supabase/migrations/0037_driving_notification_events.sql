@@ -24,8 +24,13 @@ BEGIN
     INSERT INTO public.driving_notification_events(student_id, slot_id, instructor_id, start_at, event_type)
     VALUES (OLD.student_id, OLD.id, OLD.instructor_id, OLD.start_at, 'cancelled');
   END IF;
-  IF NEW.status = 'booked' AND NEW.student_id IS NOT NULL
-     AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'booked'
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status = 'booked' AND NEW.student_id IS NOT NULL THEN
+      INSERT INTO public.driving_notification_events(student_id, slot_id, instructor_id, start_at, event_type)
+      VALUES (NEW.student_id, NEW.id, NEW.instructor_id, NEW.start_at, 'booked');
+    END IF;
+  ELSIF NEW.status = 'booked' AND NEW.student_id IS NOT NULL
+     AND (OLD.status IS DISTINCT FROM 'booked'
        OR OLD.student_id IS DISTINCT FROM NEW.student_id) THEN
     INSERT INTO public.driving_notification_events(student_id, slot_id, instructor_id, start_at, event_type)
     VALUES (NEW.student_id, NEW.id, NEW.instructor_id, NEW.start_at, 'booked');
