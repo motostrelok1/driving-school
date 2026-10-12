@@ -43,6 +43,8 @@ interface ConversationRow {
   body: string
   created_at: string
   allow_reply: boolean
+  sender_name: string | null
+  sender_role: string | null
 }
 
 export function StudentMessagesPage() {
@@ -86,7 +88,7 @@ export function StudentMessagesPage() {
     queryKey: ['my-conversation', activeThread?.id],
     queryFn: async () => {
       if (!activeThread?.id) return []
-      const { data, error } = await supabase.rpc('get_my_conversation', { target_thread_id: activeThread.id })
+      const { data, error } = await supabase.rpc('get_my_conversation_with_senders', { target_thread_id: activeThread.id })
       if (error) throw error
       return (data ?? []) as ConversationRow[]
     },
@@ -257,6 +259,9 @@ export function StudentMessagesPage() {
             const mine = item.sender_id === user?.id
             return <div key={item.message_id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[82%] rounded-2xl px-4 py-2 shadow-sm ${mine ? 'bg-primary text-white' : 'border border-border bg-white text-primary'}`}>
+                <p className={`mb-1 text-xs font-semibold ${mine ? 'text-white/85' : 'text-primary'}`}>
+                  {mine ? 'Вы' : `${item.sender_role === 'admin' ? 'Администратор' : item.sender_role === 'instructor' ? 'Инструктор' : item.sender_role === 'student' ? 'Курсант' : 'Отправитель'}${item.sender_name ? ` — ${item.sender_name}` : ''}`}
+                </p>
                 <p className="whitespace-pre-wrap text-sm">{item.body}</p>
                 <p className={`mt-1 text-[11px] ${mine ? 'text-white/70' : 'text-muted-foreground'}`}>{new Date(item.created_at).toLocaleString('ru-RU')}</p>
               </div>
