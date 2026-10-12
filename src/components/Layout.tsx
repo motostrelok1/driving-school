@@ -68,6 +68,12 @@ const navItems: NavItem[] = [
     roles: ['instructor'],
   },
   {
+    label: 'Переписка',
+    href: '/instructor/messages',
+    icon: MessageSquare,
+    roles: ['instructor'],
+  },
+  {
     label: 'Мои ученики',
     href: '/instructor/students',
     icon: GraduationCap,
