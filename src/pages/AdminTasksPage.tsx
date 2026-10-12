@@ -6,6 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { supabase } from '@/lib/supabase'
 
+interface InstructorChatTask {
+  id: string
+  student_id: string
+  instructor_id: string
+  created_at: string
+  student: { full_name: string | null } | null
+  instructor: { full_name: string | null } | null
+}
+
 interface DocumentTask {
   student_id: string
   full_name: string | null
@@ -16,6 +25,18 @@ interface DocumentTask {
 
 export function AdminTasksPage() {
   const [documentsOpen, setDocumentsOpen] = useState(false)
+  const { data: chatTasks = [] } = useQuery({
+    queryKey: ['admin-instructor-chat-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('instructor_chat_tasks')
+        .select('id,student_id,instructor_id,created_at,student:profiles!instructor_chat_tasks_student_id_fkey(full_name),instructor:profiles!instructor_chat_tasks_instructor_id_fkey(full_name)')
+        .eq('status', 'pending').order('created_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as unknown as InstructorChatTask[]
+    },
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
 
   const { data: documentTasks = [], isLoading } = useQuery({
     queryKey: ['admin-document-tasks'],
@@ -38,6 +59,17 @@ export function AdminTasksPage() {
       <p className="mt-1 text-sm text-muted-foreground">Контроль незавершённых данных и действий.</p>
     </div>
 
+    <Card>
+      <CardHeader><CardTitle>Включить переписку админ — ученик — инструктор ({chatTasks.length})</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        {chatTasks.length ? chatTasks.map((task) => (
+          <div key={task.id} className="rounded-lg border border-border p-3">
+            <p className="font-medium">{task.student?.full_name || 'Ученик'} — {task.instructor?.full_name || 'Инструктор'}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Создать общий чат с обязательным участием администратора.</p>
+          </div>
+        )) : <p className="text-sm text-muted-foreground">Нет задач на подключение переписки.</p>}
+      </CardContent>
+    </Card>
     <Card>
       <CardHeader>
         <CardTitle>Требуют внимания</CardTitle>

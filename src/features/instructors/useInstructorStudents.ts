@@ -36,6 +36,7 @@ export function useChooseInstructor() {
       return data
     },
     onSuccess: () => {
+      void supabase.functions.invoke('send-instructor-chat-task').catch((error: unknown) => console.warn('Admin chat task notification deferred', error))
       queryClient.invalidateQueries({ queryKey: ['my-instructors'] })
       queryClient.invalidateQueries({ queryKey: ['available-instructors'] })
       queryClient.invalidateQueries({ queryKey: ['my-students'] })
