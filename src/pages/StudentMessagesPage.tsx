@@ -54,7 +54,7 @@ export function StudentMessagesPage() {
   const [isReplying, setIsReplying] = useState(false)
   const conversationEndRef = useRef<HTMLDivElement | null>(null)
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, role } = useAuth()
 
   const { data: messages = [], isLoading, error } = useQuery({
     queryKey: ['my-messages'],
