@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -25,6 +25,28 @@ interface DocumentTask {
 
 export function AdminTasksPage() {
   const [documentsOpen, setDocumentsOpen] = useState(false)
+  const [chatError, setChatError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const activateChat = useMutation({
+    mutationFn: async (task: InstructorChatTask) => {
+      const { data: threadId, error: createError } = await supabase.rpc('create_admin_student_instructor_chat', {
+        target_student_id: task.student_id,
+        target_instructor_id: task.instructor_id,
+      })
+      if (createError) throw createError
+      const { error: completeError } = await supabase.rpc('complete_instructor_chat_task', {
+        target_task_id: task.id, target_thread_id: threadId,
+      })
+      if (completeError) throw completeError
+      return threadId as string
+    },
+    onSuccess: (threadId) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-instructor-chat-tasks'] })
+      window.location.assign(`/admin/messages?tab=message&thread=${threadId}`)
+    },
+    onError: (error) => setChatError(error.message),
+  })
+
   const { data: chatTasks = [] } = useQuery({
     queryKey: ['admin-instructor-chat-tasks'],
     queryFn: async () => {
@@ -62,10 +84,14 @@ export function AdminTasksPage() {
     <Card>
       <CardHeader><CardTitle>Включить переписку админ — ученик — инструктор ({chatTasks.length})</CardTitle></CardHeader>
       <CardContent className="space-y-2">
+        {chatError ? <p role="alert" className="text-sm text-red-600">{chatError}</p> : null}
         {chatTasks.length ? chatTasks.map((task) => (
           <div key={task.id} className="rounded-lg border border-border p-3">
             <p className="font-medium">{task.student?.full_name || 'Ученик'} — {task.instructor?.full_name || 'Инструктор'}</p>
             <p className="mt-1 text-xs text-muted-foreground">Создать общий чат с обязательным участием администратора.</p>
+            <button type="button" className="mt-3 rounded-lg bg-primary px-3 py-2 text-sm text-white disabled:opacity-50" disabled={activateChat.isPending} onClick={() => { setChatError(null); activateChat.mutate(task) }}>
+              {activateChat.isPending ? 'Создаём чат...' : 'Создать общий чат'}
+            </button>
           </div>
         )) : <p className="text-sm text-muted-foreground">Нет задач на подключение переписки.</p>}
       </CardContent>

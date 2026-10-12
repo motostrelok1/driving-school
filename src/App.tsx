@@ -344,6 +344,14 @@ function App() {
               }
             />
             <Route
+              path="/instructor/messages"
+              element={
+                <ProtectedRoute allowedRoles={['instructor']}>
+                  <Layout><StudentMessagesPage /></Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/instructor/students"
               element={
                 <ProtectedRoute allowedRoles={['instructor']}>

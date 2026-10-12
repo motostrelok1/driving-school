@@ -159,9 +159,23 @@ Deno.serve(async (req) => {
         notificationId = result.id ?? notificationId;
       }
       if (studentRecipients.length > 0) {
-        const result = await sendPush(studentRecipients, title, `/student/messages?tab=message&thread=${threadId}`, savedReply.id);
-        pushFailed ||= !result.ok;
-        notificationId = result.id ?? notificationId;
+        const { data: recipientProfiles, error: recipientProfilesError } = await adminSupabase
+          .from("profiles").select("id, role").in("id", studentRecipients);
+        if (recipientProfilesError) return jsonResponse({ error: "Failed to resolve recipients" }, 500);
+        const instructors = studentRecipients.filter((id) =>
+          recipientProfiles?.some((profile) => profile.id === id && profile.role === "instructor")
+        );
+        const students = studentRecipients.filter((id) => !instructors.includes(id));
+        if (students.length > 0) {
+          const result = await sendPush(students, title, `/student/messages?tab=message&thread=${threadId}`, savedReply.id);
+          pushFailed ||= !result.ok;
+          notificationId = result.id ?? notificationId;
+        }
+        if (instructors.length > 0) {
+          const result = await sendPush(instructors, title, `/instructor/messages?tab=message&thread=${threadId}`, savedReply.id);
+          pushFailed ||= !result.ok;
+          notificationId = result.id ?? notificationId;
+        }
       }
 
       if (allRecipients.length > 0) {
