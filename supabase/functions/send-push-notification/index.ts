@@ -93,10 +93,11 @@ Deno.serve(async (req) => {
 
       const { data: thread } = await adminSupabase
         .from("message_threads")
-        .select("id, subject, created_by")
+        .select("id, subject, created_by, closed_at")
         .eq("id", threadId)
         .maybeSingle();
       if (!thread?.created_by) return jsonResponse({ error: "Conversation not found" }, 404);
+      if (thread.closed_at) return jsonResponse({ error: "Conversation is archived and read-only" }, 409);
 
       const { data: membership } = await adminSupabase
         .from("message_thread_participants")
