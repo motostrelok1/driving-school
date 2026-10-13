@@ -87,7 +87,7 @@ export function PddDraftEditor({ blocks, onChange }: {
 
   return <section className="space-y-4 rounded-xl border bg-white p-4">
     <h2 className="text-lg font-semibold">Редактор черновика</h2>
-    <p className="text-sm text-muted-foreground">Изменения сохраняются только в этом браузере и не публикуются.</p>
+    <p className="text-sm text-muted-foreground">Изменения не публикуются для курсантов. Для сохранения нажмите «Сохранить в Supabase» вверху страницы.</p>
     <div className="grid gap-4 lg:grid-cols-[minmax(190px,1fr)_minmax(0,2fr)]">
       <div className="space-y-2">
         <div className="max-h-80 space-y-1 overflow-auto">
