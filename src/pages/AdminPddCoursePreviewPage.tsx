@@ -92,7 +92,10 @@ function PreviewBlock({ block }: { block: Block }) {
 
 export function AdminPddCoursePreviewPage() {
   const [course, setCourse] = useState<Course | null>(null)
-  const [sectionId, setSectionId] = useState('s1')
+  const [sectionId, setSectionId] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('section')
+    return requested && /^(s([1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti)$/.test(requested) ? requested : 's1'
+  })
   const [error, setError] = useState('')
   const [drafts, setDrafts] = useState<Record<string, Block[]>>({})
   const [editing, setEditing] = useState(false)
