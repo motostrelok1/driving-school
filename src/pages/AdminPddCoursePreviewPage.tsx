@@ -6,7 +6,7 @@ import { PddDraftEditor } from '@/components/PddDraftEditor'
 type Question = { q: string; options: string[]; correct: number; explain?: string }
 type Block = {
   type: string; text?: string; title?: string; src?: string; w?: number; h?: number
-  term?: string; def?: string; good?: boolean; intro?: string; questions?: Question[]; url?: string; label?: string
+  term?: string; def?: string; good?: boolean; intro?: string; questions?: Question[]; url?: string; label?: string; align?: 'left' | 'center' | 'right'
 }
 type Section = { id: string; title: string; blocks: Block[] }
 type Course = { title: string; subtitle?: string; sections: Section[] }
@@ -66,9 +66,9 @@ function PreviewBlock({ block }: { block: Block }) {
     case 'img': {
       const valid = /^img\/[a-zA-Z0-9_-]+\.png$/.test(block.src ?? '')
       const stored = /^https:\/\/[^\s]+\/storage\/v1\/object\/public\/pdd-course-media\/uploads\/[a-zA-Z0-9_-]+\.(png|jpg|webp)$/.test(block.src ?? '')
-      return <figure className="my-4 text-center">
+      return <figure className={`my-4 flex flex-col ${block.align === "left" ? "items-start" : block.align === "right" ? "items-end" : "items-center"}`}>
         {valid || stored
-          ? <img loading="lazy" className="mx-auto h-auto max-w-full rounded" width={block.w} height={block.h}
+          ? <img loading="lazy" className="h-auto max-w-full rounded" width={block.w} height={block.h}
               src={valid ? SOURCE_MEDIA + block.src : block.src} alt="Иллюстрация к лекции ПДД" />
           : <p className="text-red-600">Неподдерживаемый путь изображения</p>}
         <figcaption className="text-xs text-muted-foreground">Предпросмотр: изображение из исходного репозитория</figcaption>
