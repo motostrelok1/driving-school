@@ -9,7 +9,6 @@ type Block = {
   src?: string
   intro?: string
   good?: boolean
-  [key: string]: unknown
 }
 
 export function PddDraftEditor({ blocks, onChange }: {
