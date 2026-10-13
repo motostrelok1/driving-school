@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
+import { supabase } from '@/lib/supabase'
 
 type Block = {
   type: string
@@ -19,11 +20,39 @@ export function PddDraftEditor({ blocks, onChange }: {
   onChange: (next: Block[]) => void
 }) {
   const [selected, setSelected] = useState(0)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const index = Math.min(selected, Math.max(0, blocks.length - 1))
   const active = blocks[index]
 
   function change(fields: Partial<Block>) {
     onChange(blocks.map((block, i) => i === index ? { ...block, ...fields } : block))
+  }
+
+  async function uploadImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file || !active || active.type !== 'img') return
+    event.target.value = ''
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      setUploadError('Разрешены PNG, JPEG или WebP до 10 МБ')
+      return
+    }
+    setUploading(true)
+    setUploadError('')
+    try {
+      const extension = file.type === 'image/png' ? 'png' : file.type === 'image/jpeg' ? 'jpg' : 'webp'
+      const path = `uploads/${crypto.randomUUID()}.${extension}`
+      const { error } = await supabase.storage.from('pdd-course-media').upload(path, file, {
+        contentType: file.type, upsert: false
+      })
+      if (error) throw error
+      const result = supabase.storage.from('pdd-course-media').getPublicUrl(path)
+      change({ src: result.data.publicUrl })
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Не удалось загрузить изображение')
+    } finally {
+      setUploading(false)
+    }
   }
 
   function move(direction: -1 | 1) {
@@ -87,11 +116,19 @@ export function PddDraftEditor({ blocks, onChange }: {
               <textarea className="w-full rounded border p-2" rows={field === 'text' ? 6 : 2}
                 value={active[field] ?? ''} onChange={event => change({ [field]: event.target.value })} />
             </label>)}
+          {active.type === 'img' && <div className="space-y-2">
+            <label className="block text-sm font-medium">Загрузить изображение в Supabase Storage
+              <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading}
+                onChange={event => void uploadImage(event)} className="mt-2 block w-full text-sm" />
+            </label>
+            {uploading && <p role="status">Загрузка...</p>}
+            {uploadError && <p role="alert" className="text-sm text-red-700">{uploadError}</p>}
+          </div>}
           {active.type === 'img' && <label className="block space-y-1 text-sm">
             <span className="font-medium">Ширина картинки (80–1000 пикселей)</span>
             <input className="w-full rounded border p-2" type="number" min={80} max={1000}
               value={active.w ?? 320} onChange={event => change({ w: Math.max(80, Math.min(1000, Number(event.target.value) || 320)) })} />
-            <span className="block text-muted-foreground">Пока доступны пути к изображениям исходного курса. Загрузка файлов будет следующим этапом.</span>
+            <span className="block text-muted-foreground">Можно загрузить файл в Supabase или указать путь исходного изображения.</span>
           </label>}
           {active.type === 'quiz' && <p className="text-sm text-amber-800">Вопросы пока доступны только для просмотра.</p>}
         </>}

@@ -65,18 +65,20 @@ function PreviewBlock({ block }: { block: Block }) {
       </div>
     case 'img': {
       const valid = /^img\/[a-zA-Z0-9_-]+\.png$/.test(block.src ?? '')
+      const stored = /^https:\/\/[^\s]+\/storage\/v1\/object\/public\/pdd-course-media\/uploads\/[a-zA-Z0-9_-]+\.(png|jpg|webp)$/.test(block.src ?? '')
       return <figure className="my-4 text-center">
-        {valid
+        {valid || stored
           ? <img loading="lazy" className="mx-auto h-auto max-w-full rounded" width={block.w} height={block.h}
-              src={SOURCE_MEDIA + block.src} alt="Иллюстрация к лекции ПДД" />
+              src={valid ? SOURCE_MEDIA + block.src : block.src} alt="Иллюстрация к лекции ПДД" />
           : <p className="text-red-600">Неподдерживаемый путь изображения</p>}
         <figcaption className="text-xs text-muted-foreground">Предпросмотр: изображение из исходного репозитория</figcaption>
       </figure>
     }
     case 'link': {
-      const safe = /^https:\/\/[^\s]+$/.test(block.url ?? '')
+      const internal = /^\/admin\/pdd\/preview\?section=(s(?:[1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti)$/.test(block.url ?? '')
+      const safe = /^https:\/\/[^\s]+$/.test(block.url ?? '') || internal
       return safe
-        ? <p><a className="text-sky-700 underline" href={block.url} rel="noopener noreferrer" target="_blank">{block.label || block.url}</a></p>
+        ? <p><a className="text-sky-700 underline" href={block.url} rel="noopener noreferrer" target={internal ? "_self" : "_blank"}>{block.label || block.url}</a></p>
         : <p className="text-amber-700">Укажите корректную HTTPS-ссылку.</p>
     }
     case 'quiz':
@@ -90,7 +92,10 @@ function PreviewBlock({ block }: { block: Block }) {
 
 export function AdminPddCoursePreviewPage() {
   const [course, setCourse] = useState<Course | null>(null)
-  const [sectionId, setSectionId] = useState('s1')
+  const [sectionId, setSectionId] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('section')
+    return requested && /^(s([1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti)$/.test(requested) ? requested : 's1'
+  })
   const [error, setError] = useState('')
   const [drafts, setDrafts] = useState<Record<string, Block[]>>({})
   const [editing, setEditing] = useState(false)
