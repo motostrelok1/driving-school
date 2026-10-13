@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { BookOpen } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { usePddArticle, useUpsertPddArticle } from '@/features/admin/useAdmin'
@@ -81,7 +82,7 @@ export function AdminPddPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-primary">ПДД</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold text-primary">ПДД</h1><Link to="/admin/pdd/preview" className="rounded-lg border px-4 py-2 text-sm font-medium text-sky-700">Предпросмотр нового курса (30 тем)</Link></div>
 
       <Card>
         <CardHeader>

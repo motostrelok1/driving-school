@@ -125,6 +125,9 @@ const AdminPddPage = lazy(() =>
     default: module.AdminPddPage,
   }))
 )
+const AdminPddCoursePreviewPage = lazy(() =>
+  import('@/pages/AdminPddCoursePreviewPage').then((module) => ({ default: module.AdminPddCoursePreviewPage }))
+)
 const AdminTheoryBankPage = lazy(() =>
   import('@/pages/AdminTheoryBankPage').then((module) => ({ default: module.AdminTheoryBankPage }))
 )
@@ -429,6 +432,9 @@ function App() {
               }
             />
 
+            <Route path="/admin/pdd/preview" element={
+              <ProtectedRoute allowedRoles={['admin']}><Layout><AdminPddCoursePreviewPage /></Layout></ProtectedRoute>
+            } />
             <Route path="/admin/theory-bank" element={
               <ProtectedRoute allowedRoles={['admin']}><Layout><AdminTheoryBankPage /></Layout></ProtectedRoute>
             } />
