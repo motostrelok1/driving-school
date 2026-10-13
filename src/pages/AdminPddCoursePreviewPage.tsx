@@ -6,7 +6,7 @@ import { PddDraftEditor } from '@/components/PddDraftEditor'
 type Question = { q: string; options: string[]; correct: number; explain?: string }
 type Block = {
   type: string; text?: string; title?: string; src?: string; w?: number; h?: number
-  term?: string; def?: string; good?: boolean; intro?: string; questions?: Question[]
+  term?: string; def?: string; good?: boolean; intro?: string; questions?: Question[]; url?: string; label?: string
 }
 type Section = { id: string; title: string; blocks: Block[] }
 type Course = { title: string; subtitle?: string; sections: Section[] }
@@ -72,6 +72,12 @@ function PreviewBlock({ block }: { block: Block }) {
           : <p className="text-red-600">Неподдерживаемый путь изображения</p>}
         <figcaption className="text-xs text-muted-foreground">Предпросмотр: изображение из исходного репозитория</figcaption>
       </figure>
+    }
+    case 'link': {
+      const safe = /^https:\/\/[^\s]+$/.test(block.url ?? '')
+      return safe
+        ? <p><a className="text-sky-700 underline" href={block.url} rel="noopener noreferrer" target="_blank">{block.label || block.url}</a></p>
+        : <p className="text-amber-700">Укажите корректную HTTPS-ссылку.</p>
     }
     case 'quiz':
       return <PreviewQuiz block={block} />
