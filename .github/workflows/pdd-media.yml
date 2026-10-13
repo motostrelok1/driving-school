@@ -1,0 +1,26 @@
+name: Prepare PDD course media
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch 383 pinned images
+        run: python3 tools/import_pdd_images.py
+      - name: Verify media
+        run: python3 tools/import_pdd_images.py --verify-only
+      - name: Archive staged media
+        run: tar -czf pdd-course-images.tar.gz -C public/course-import img
+      - name: Upload images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdd-course-images
+          path: pdd-course-images.tar.gz
+          retention-days: 14
