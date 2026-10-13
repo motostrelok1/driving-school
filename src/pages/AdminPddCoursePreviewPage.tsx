@@ -6,7 +6,7 @@ import { PddDraftEditor } from '@/components/PddDraftEditor'
 type Question = { q: string; options: string[]; correct: number; explain?: string }
 type Block = {
   type: string; text?: string; title?: string; src?: string; w?: number; h?: number
-  term?: string; def?: string; good?: boolean; intro?: string; questions?: Question[]; url?: string; label?: string; align?: 'left' | 'center' | 'right'
+  term?: string; def?: string; good?: boolean; intro?: string; questions?: Question[]; url?: string; label?: string; caption?: string; align?: 'left' | 'center' | 'right'
 }
 type Section = { id: string; title: string; blocks: Block[] }
 type Course = { title: string; subtitle?: string; sections: Section[] }
@@ -71,7 +71,7 @@ function PreviewBlock({ block }: { block: Block }) {
           ? <img loading="lazy" className="h-auto max-w-full rounded" width={block.w} height={block.h}
               src={valid ? SOURCE_MEDIA + block.src : block.src} alt="Иллюстрация к лекции ПДД" />
           : <p className="text-red-600">Неподдерживаемый путь изображения</p>}
-        <figcaption className="text-xs text-muted-foreground">Предпросмотр: изображение из исходного репозитория</figcaption>
+        {block.caption?.trim() && <figcaption className="mt-2 max-w-full text-center text-sm text-muted-foreground whitespace-pre-line">{block.caption}</figcaption>}
       </figure>
     }
     case 'link': {
