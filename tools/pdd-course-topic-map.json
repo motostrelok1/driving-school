@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "notes": "Proposed mapping for migration compatibility only. Do not infer old completion from broad grouped sections.",
+  "sections": [
+    {
+      "source_id": "s1",
+      "legacy_topic_ids": [
+        "1"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s2",
+      "legacy_topic_ids": [
+        "2"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s3",
+      "legacy_topic_ids": [
+        "3"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s4",
+      "legacy_topic_ids": [
+        "4"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s5",
+      "legacy_topic_ids": [
+        "5"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s6",
+      "legacy_topic_ids": [
+        "6"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s7",
+      "legacy_topic_ids": [
+        "7"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s8",
+      "legacy_topic_ids": [
+        "8"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s9",
+      "legacy_topic_ids": [
+        "9"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s10",
+      "legacy_topic_ids": [
+        "10"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s11",
+      "legacy_topic_ids": [
+        "11"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s12",
+      "legacy_topic_ids": [
+        "12"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s13",
+      "legacy_topic_ids": [
+        "13"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s14",
+      "legacy_topic_ids": [
+        "14"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s15",
+      "legacy_topic_ids": [
+        "15"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s16",
+      "legacy_topic_ids": [
+        "16"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s17",
+      "legacy_topic_ids": [
+        "17"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s18",
+      "legacy_topic_ids": [
+        "18"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s19",
+      "legacy_topic_ids": [
+        "19"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s20",
+      "legacy_topic_ids": [
+        "20"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s21",
+      "legacy_topic_ids": [
+        "21"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s22",
+      "legacy_topic_ids": [
+        "22"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s23",
+      "legacy_topic_ids": [
+        "23"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s24",
+      "legacy_topic_ids": [
+        "24"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s25",
+      "legacy_topic_ids": [
+        "25"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "s26",
+      "legacy_topic_ids": [
+        "26"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "signs",
+      "legacy_topic_ids": [
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34"
+      ],
+      "relation": "one_to_many",
+      "review_required": true
+    },
+    {
+      "source_id": "markup",
+      "legacy_topic_ids": [
+        "35",
+        "36"
+      ],
+      "relation": "one_to_many",
+      "review_required": true
+    },
+    {
+      "source_id": "dopusk",
+      "legacy_topic_ids": [
+        "37"
+      ],
+      "relation": "one_to_one"
+    },
+    {
+      "source_id": "faults",
+      "legacy_topic_ids": [
+        "38"
+      ],
+      "relation": "one_to_one",
+      "review_required": true
+    }
+  ]
+}
