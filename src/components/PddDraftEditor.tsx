@@ -11,6 +11,7 @@ type Block = {
   url?: string
   label?: string
   w?: number
+  align?: 'left' | 'center' | 'right'
   intro?: string
   good?: boolean
 }
@@ -69,7 +70,7 @@ export function PddDraftEditor({ blocks, onChange }: {
   function add(type: 'p' | 'topic' | 'lead' | 'example' | 'img' | 'link') {
     const block: Block = type === 'example'
       ? { type, title: 'Новый пример', text: '', good: true }
-      : type === 'img' ? { type, src: '', w: 320 }
+      : type === 'img' ? { type, src: '', w: 320, align: 'center' }
       : type === 'link' ? { type, label: 'Название ссылки', url: '' }
       : { type, text: '' }
     onChange([...blocks.slice(0, index + 1), block, ...blocks.slice(index + 1)])
@@ -109,14 +110,25 @@ export function PddDraftEditor({ blocks, onChange }: {
             <button type="button" className="rounded border border-red-300 px-2 py-1 text-red-700"
               onClick={() => { onChange(blocks.filter((_, i) => i !== index)); setSelected(Math.max(0, index - 1)) }}>Удалить</button>
           </div>
-          {(['text', 'title', 'term', 'def', 'intro', 'src', 'url', 'label'] as const)
+          {(['text', 'title', 'term', 'def', 'intro', 'url', 'label'] as const)
             .filter(field => field in active)
             .map(field => <label key={field} className="block space-y-1 text-sm">
               <span className="font-medium">{{ text: 'Текст', title: 'Название', term: 'Термин', def: 'Определение', intro: 'Вступление', src: 'Путь изображения (img/...)', url: 'Адрес HTTPS', label: 'Текст ссылки' }[field]}</span>
               <textarea className="w-full rounded border p-2" rows={field === 'text' ? 6 : 2}
                 value={active[field] ?? ''} onChange={event => change({ [field]: event.target.value })} />
             </label>)}
-          {active.type === 'img' && <div className="space-y-2">
+          {active.type === 'img' && <div className="space-y-3 rounded-lg border p-3">
+            <p className="font-medium">Изображение</p>
+            {active.src && <div className="rounded-lg bg-slate-50 p-2">
+              <img alt="Миниатюра выбранного изображения" className="mx-auto max-h-48 max-w-full object-contain"
+                src={/^img\/[a-zA-Z0-9_-]+\.png$/.test(active.src)
+                  ? 'https://raw.githubusercontent.com/motostrelok1/edu.dvizh-teory/d431cc760d8ba4ebdee2824e595436dc8cc56bd2/public/' + active.src
+                  : active.src} />
+            </div>}
+            <details className="text-sm"><summary className="cursor-pointer">Дополнительно: адрес изображения</summary>
+              <textarea className="mt-2 w-full rounded border p-2" value={active.src ?? ''}
+                onChange={event => change({ src: event.target.value })} rows={2} />
+            </details>
             <label className="block text-sm font-medium">Загрузить изображение в Supabase Storage
               <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading}
                 onChange={event => void uploadImage(event)} className="mt-2 block w-full text-sm" />
@@ -128,7 +140,14 @@ export function PddDraftEditor({ blocks, onChange }: {
             <span className="font-medium">Ширина картинки (80–1000 пикселей)</span>
             <input className="w-full rounded border p-2" type="number" min={80} max={1000}
               value={active.w ?? 320} onChange={event => change({ w: Math.max(80, Math.min(1000, Number(event.target.value) || 320)) })} />
-            <span className="block text-muted-foreground">Можно загрузить файл в Supabase или указать путь исходного изображения.</span>
+            <span className="block text-muted-foreground">Ширина применяется в предпросмотре. На мобильном изображение уменьшается автоматически.</span>
+          </label>}
+          {active.type === 'img' && <label className="block space-y-1 text-sm">
+            <span className="font-medium">Выравнивание изображения</span>
+            <select className="w-full rounded border bg-white p-2" value={active.align ?? 'center'}
+              onChange={event => change({ align: event.target.value as 'left' | 'center' | 'right' })}>
+              <option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option>
+            </select>
           </label>}
           {active.type === 'quiz' && <p className="text-sm text-amber-800">Вопросы пока доступны только для просмотра.</p>}
         </>}
