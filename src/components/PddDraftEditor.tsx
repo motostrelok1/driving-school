@@ -11,6 +11,7 @@ type Block = {
   url?: string
   label?: string
   w?: number
+  caption?: string
   align?: 'left' | 'center' | 'right'
   intro?: string
   good?: boolean
@@ -136,6 +137,11 @@ export function PddDraftEditor({ blocks, onChange }: {
             {uploading && <p role="status">Загрузка...</p>}
             {uploadError && <p role="alert" className="text-sm text-red-700">{uploadError}</p>}
           </div>}
+          {active.type === 'img' && <label className="block space-y-1 text-sm">
+            <span className="font-medium">Подпись под изображением</span>
+            <textarea className="w-full rounded border p-2" rows={2} placeholder="Например: Знак 2.4 «Уступите дорогу»"
+              value={active.caption ?? ''} onChange={event => change({ caption: event.target.value })} />
+          </label>}
           {active.type === 'img' && <label className="block space-y-1 text-sm">
             <span className="font-medium">Ширина картинки (80–1000 пикселей)</span>
             <input className="w-full rounded border p-2" type="number" min={80} max={1000}
