@@ -7,6 +7,9 @@ type Block = {
   term?: string
   def?: string
   src?: string
+  url?: string
+  label?: string
+  w?: number
   intro?: string
   good?: boolean
 }
@@ -34,12 +37,21 @@ export function PddDraftEditor({ blocks, onChange }: {
     setSelected(target)
   }
 
-  function add(type: 'p' | 'topic' | 'lead' | 'example') {
+  function add(type: 'p' | 'topic' | 'lead' | 'example' | 'img' | 'link') {
     const block: Block = type === 'example'
       ? { type, title: 'Новый пример', text: '', good: true }
+      : type === 'img' ? { type, src: '', w: 320 }
+      : type === 'link' ? { type, label: 'Название ссылки', url: '' }
       : { type, text: '' }
-    onChange([...blocks, block])
-    setSelected(blocks.length)
+    onChange([...blocks.slice(0, index + 1), block, ...blocks.slice(index + 1)])
+    setSelected(index + 1)
+  }
+
+  const names: Record<string, string> = {
+    p: 'Текст', topic: 'Заголовок', lead: 'Пояснение',
+    example: 'Пример', img: 'Изображение', link: 'Ссылка',
+    quote: 'Цитата', term: 'Термин', quiz: 'Вопросы',
+    motivation: 'Введение', h2: 'Подзаголовок'
   }
 
   return <section className="space-y-4 rounded-xl border bg-white p-4">
@@ -50,31 +62,37 @@ export function PddDraftEditor({ blocks, onChange }: {
         <div className="max-h-80 space-y-1 overflow-auto">
           {blocks.map((block, i) => <button key={i} type="button" onClick={() => setSelected(i)}
             className={`block w-full rounded p-2 text-left text-sm ${i === index ? 'bg-sky-100' : 'hover:bg-slate-100'}`}>
-            {i + 1}. {block.type}: {(block.text ?? block.title ?? block.src ?? '').slice(0, 32)}
+            {i + 1}. {names[block.type] ?? block.type}: {(block.text ?? block.title ?? block.src ?? '').slice(0, 32)}
           </button>)}
         </div>
         <div className="flex flex-wrap gap-2">
-          {(['p', 'topic', 'lead', 'example'] as const).map(type =>
+          {(['p', 'topic', 'lead', 'example', 'img', 'link'] as const).map(type =>
             <button key={type} type="button" className="rounded border px-2 py-1 text-sm"
-              onClick={() => add(type)}>+ {type}</button>)}
+              onClick={() => add(type)}>+ {names[type]}</button>)}
         </div>
       </div>
       <div className="space-y-3">
         {!active ? <p>Добавьте блок.</p> : <>
-          <p className="font-medium">Блок {index + 1}: {active.type}</p>
+          <p className="font-medium">Блок {index + 1}: {names[active.type] ?? active.type}</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="rounded border px-2 py-1" onClick={() => move(-1)} disabled={index === 0}>↑ Выше</button>
             <button type="button" className="rounded border px-2 py-1" onClick={() => move(1)} disabled={index === blocks.length - 1}>↓ Ниже</button>
             <button type="button" className="rounded border border-red-300 px-2 py-1 text-red-700"
               onClick={() => { onChange(blocks.filter((_, i) => i !== index)); setSelected(Math.max(0, index - 1)) }}>Удалить</button>
           </div>
-          {(['text', 'title', 'term', 'def', 'intro', 'src'] as const)
+          {(['text', 'title', 'term', 'def', 'intro', 'src', 'url', 'label'] as const)
             .filter(field => field in active)
             .map(field => <label key={field} className="block space-y-1 text-sm">
-              <span className="font-medium">{field}</span>
+              <span className="font-medium">{{ text: 'Текст', title: 'Название', term: 'Термин', def: 'Определение', intro: 'Вступление', src: 'Путь изображения (img/...)', url: 'Адрес HTTPS', label: 'Текст ссылки' }[field]}</span>
               <textarea className="w-full rounded border p-2" rows={field === 'text' ? 6 : 2}
                 value={active[field] ?? ''} onChange={event => change({ [field]: event.target.value })} />
             </label>)}
+          {active.type === 'img' && <label className="block space-y-1 text-sm">
+            <span className="font-medium">Ширина картинки (80–1000 пикселей)</span>
+            <input className="w-full rounded border p-2" type="number" min={80} max={1000}
+              value={active.w ?? 320} onChange={event => change({ w: Math.max(80, Math.min(1000, Number(event.target.value) || 320)) })} />
+            <span className="block text-muted-foreground">Пока доступны пути к изображениям исходного курса. Загрузка файлов будет следующим этапом.</span>
+          </label>}
           {active.type === 'quiz' && <p className="text-sm text-amber-800">Вопросы пока доступны только для просмотра.</p>}
         </>}
       </div>
