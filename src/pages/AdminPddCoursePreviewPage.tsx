@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { PddDraftEditor } from '@/components/PddDraftEditor'
 
 type Question = { q: string; options: string[]; correct: number; explain?: string }
 type Block = {
@@ -85,6 +86,9 @@ export function AdminPddCoursePreviewPage() {
   const [course, setCourse] = useState<Course | null>(null)
   const [sectionId, setSectionId] = useState('s1')
   const [error, setError] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, Block[]>>({})
+  const [editing, setEditing] = useState(false)
+  const [draftStatus, setDraftStatus] = useState('')
   useEffect(() => {
     const controller = new AbortController()
     fetch('/course-import/sections.json', { signal: controller.signal })
@@ -99,7 +103,44 @@ export function AdminPddCoursePreviewPage() {
       .catch(err => { if (!controller.signal.aborted) setError(String(err)) })
     return () => controller.abort()
   }, [])
-  const section = course?.sections.find(item => item.id === sectionId)
+  const sourceSection = course?.sections.find(item => item.id === sectionId)
+  const section = sourceSection && (drafts[sectionId]
+    ? { ...sourceSection, blocks: drafts[sectionId] }
+    : sourceSection)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('pdd-preview-draft-v1:' + sectionId)
+      if (!saved) return
+      const parsed: unknown = JSON.parse(saved)
+      if (Array.isArray(parsed) && parsed.every(item => item && typeof item === 'object' && typeof item.type === 'string')) {
+        setDrafts(prev => ({ ...prev, [sectionId]: parsed as Block[] }))
+      }
+    } catch {
+      // Corrupted browser drafts must not interrupt source course preview.
+    }
+  }, [sectionId])
+
+  function saveDraft() {
+    if (!section) return
+    try {
+      localStorage.setItem('pdd-preview-draft-v1:' + sectionId, JSON.stringify(section.blocks))
+      setDraftStatus('Черновик сохранён в этом браузере')
+    } catch {
+      setDraftStatus('Не удалось сохранить: возможно, недостаточно места в браузере')
+    }
+  }
+
+  function resetDraft() {
+    if (!window.confirm('Удалить локальный черновик текущего раздела?')) return
+    localStorage.removeItem('pdd-preview-draft-v1:' + sectionId)
+    setDrafts(prev => {
+      const next = { ...prev }
+      delete next[sectionId]
+      return next
+    })
+    setDraftStatus('Черновик удалён')
+  }
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h1 className="text-2xl font-bold">Предпросмотр нового курса ПДД</h1>
@@ -119,6 +160,19 @@ export function AdminPddCoursePreviewPage() {
           {course.sections.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {s.title}</option>)}
         </select>
       </label>
+      {section && <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setEditing(value => !value)}>
+          {editing ? 'Скрыть редактор' : 'Редактировать черновик'}
+        </button>
+        <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" onClick={saveDraft}>Сохранить локально</button>
+        <button type="button" className="rounded border px-3 py-2 text-sm" onClick={resetDraft}>Сбросить черновик</button>
+        <span role="status" className="text-sm text-muted-foreground">{draftStatus}</span>
+      </div>}
+      {section && editing && <PddDraftEditor key={section.id} blocks={section.blocks}
+        onChange={blocks => {
+          setDrafts(prev => ({ ...prev, [sectionId]: blocks }))
+          setDraftStatus('Есть несохранённые изменения')
+        }} />}
       {section && <Card key={section.id}>
         <CardHeader><CardTitle>{section.title}</CardTitle></CardHeader>
         <CardContent className="space-y-5">
