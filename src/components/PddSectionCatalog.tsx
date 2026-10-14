@@ -9,6 +9,7 @@ export function PddSectionCatalog({ entries, onChange }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
   const [titles, setTitles] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -21,6 +22,19 @@ export function PddSectionCatalog({ entries, onChange }: {
       .update(changes).eq('section_id', section_id)
     if (updateError) setError(updateError.message)
     else onChange()
+    setBusy(false)
+  }
+
+  async function addSection() {
+    const title = newTitle.trim()
+    if (!title || title.length > 180) { setError('Укажите название длиной до 180 символов'); return }
+    setBusy(true); setError('')
+    const section_id = 'custom_' + crypto.randomUUID().replaceAll('-', '')
+    const order = Math.max(0, ...entries.map(item => item.sort_order)) + 1
+    const { error: insertError } = await supabase.from('pdd_course_catalog')
+      .insert({ section_id, title, sort_order: order })
+    if (insertError) setError(insertError.message)
+    else { setNewTitle(''); onChange() }
     setBusy(false)
   }
 
@@ -49,6 +63,13 @@ export function PddSectionCatalog({ entries, onChange }: {
         Переименуйте или переставьте темы, либо отправьте ненужную в архив. История публикаций сохраняется.
         Новый порядок пока действует только в административном каталоге, не в кабинете ученика.
       </p>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3">
+        <input className="min-w-48 flex-1 rounded border p-2 text-sm" placeholder="Название нового раздела"
+          aria-label="Название нового раздела" value={newTitle}
+          onChange={event => setNewTitle(event.target.value)} maxLength={180}/>
+        <button type="button" disabled={busy || !newTitle.trim()} className="rounded bg-sky-700 px-3 py-2 text-sm text-white"
+          onClick={() => void addSection()}>+ Добавить раздел</button>
+      </div>
       {entries.map(item => <div key={item.section_id} className="flex flex-wrap items-center gap-2 border-b py-2">
         <span className="w-14 text-xs text-muted-foreground">{item.section_id}</span>
         <input className="min-w-40 flex-1 rounded border p-2 text-sm" aria-label={'Название ' + item.section_id}
@@ -71,7 +92,7 @@ export function PddSectionCatalog({ entries, onChange }: {
           }}>{item.is_archived ? 'Восстановить' : 'В архив'}</button>
       </div>)}
       {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
-      <p className="text-sm text-muted-foreground">Добавление новых разделов будет следующим этапом: для этого нужно расширить правила ID, черновиков и публикаций.</p>
+      <p className="text-sm text-muted-foreground">Новые разделы начинают с пустого черновика. Публикация новых разделов будет включена отдельным этапом.</p>
     </>}
   </section>
 }
