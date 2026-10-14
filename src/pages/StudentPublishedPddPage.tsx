@@ -25,6 +25,7 @@ const READ_KEY = 'read-pdd-published'
 export function usePddReadProgress() {
   const [readIds, setReadIds] = useState<string[]>([])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
     let active = true
     void (async () => {
@@ -32,10 +33,11 @@ export function usePddReadProgress() {
       if (!active) return
       if (readError) setError(readError.message)
       else setReadIds((data ?? []).map(item => item.section_id))
+      setLoading(false)
     })()
     return () => { active = false }
   }, [])
-  return { readIds, error }
+  return { readIds, error, loading }
 }
 export function getReadPddIds() {
   try { const ids: unknown = JSON.parse(localStorage.getItem(READ_KEY) ?? '[]'); return Array.isArray(ids) ? ids.filter(x => typeof x === 'string') as string[] : [] }
