@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PddDraftEditor } from '@/components/PddDraftEditor'
+import { supabase } from '@/lib/supabase'
 
 type Question = { q: string; options: string[]; correct: number; explain?: string }
 type Block = {
@@ -100,6 +101,9 @@ export function AdminPddCoursePreviewPage() {
   const [drafts, setDrafts] = useState<Record<string, Block[]>>({})
   const [editing, setEditing] = useState(false)
   const [draftStatus, setDraftStatus] = useState('')
+  const [draftLoading, setDraftLoading] = useState(true)
+  const [draftSaving, setDraftSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
   useEffect(() => {
     const controller = new AbortController()
     fetch('/course-import/sections.json', { signal: controller.signal })
@@ -120,37 +124,77 @@ export function AdminPddCoursePreviewPage() {
     : sourceSection)
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('pdd-preview-draft-v1:' + sectionId)
-      if (!saved) return
-      const parsed: unknown = JSON.parse(saved)
-      if (Array.isArray(parsed) && parsed.every(item => item && typeof item === 'object' && typeof item.type === 'string')) {
-        setDrafts(prev => ({ ...prev, [sectionId]: parsed as Block[] }))
+    let active = true
+    setDraftLoading(true)
+    setDraftStatus('')
+    setDirty(false)
+    void (async () => {
+      const { data, error: loadError } = await supabase.from('pdd_course_drafts')
+        .select('blocks').eq('section_id', sectionId).maybeSingle()
+      if (!active) return
+      if (loadError) {
+        setDraftStatus('Не удалось прочитать серверный черновик: ' + loadError.message)
+        setDraftLoading(false)
+        return
       }
-    } catch {
-      // Corrupted browser drafts must not interrupt source course preview.
-    }
+      if (data && Array.isArray(data.blocks)) {
+        setDrafts(prev => ({ ...prev, [sectionId]: data.blocks as Block[] }))
+        setDraftStatus('Загружен черновик из Supabase')
+      } else {
+        try {
+          const saved = localStorage.getItem('pdd-preview-draft-v1:' + sectionId)
+          const parsed: unknown = saved ? JSON.parse(saved) : null
+          if (Array.isArray(parsed) && parsed.every(item =>
+            item && typeof item === 'object' && typeof item.type === 'string')) {
+            setDrafts(prev => ({ ...prev, [sectionId]: parsed as Block[] }))
+            setDraftStatus('Найден старый локальный черновик. Нажмите «Сохранить в Supabase» для переноса.')
+          } else {
+            setDrafts(prev => { const next = { ...prev }; delete next[sectionId]; return next })
+          }
+        } catch { setDraftStatus('Локальный черновик повреждён') }
+      }
+      setDraftLoading(false)
+    })()
+    return () => { active = false }
   }, [sectionId])
 
-  function saveDraft() {
-    if (!section) return
-    try {
-      localStorage.setItem('pdd-preview-draft-v1:' + sectionId, JSON.stringify(section.blocks))
-      setDraftStatus('Черновик сохранён в этом браузере')
-    } catch {
-      setDraftStatus('Не удалось сохранить: возможно, недостаточно места в браузере')
+  async function saveDraft() {
+    if (!section || draftSaving || draftLoading) return
+    setDraftSaving(true)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      setDraftStatus('Не удалось определить администратора')
+      setDraftSaving(false)
+      return
     }
+    const { error: saveError } = await supabase.from('pdd_course_drafts').upsert({
+      section_id: sectionId, blocks: section.blocks, updated_by: user.id
+    }, { onConflict: 'section_id' })
+    if (saveError) {
+      setDraftStatus('Ошибка сохранения: ' + saveError.message)
+    } else {
+      localStorage.removeItem('pdd-preview-draft-v1:' + sectionId)
+      setDirty(false)
+      setDraftStatus('Черновик сохранён в Supabase')
+    }
+    setDraftSaving(false)
   }
 
-  function resetDraft() {
-    if (!window.confirm('Удалить локальный черновик текущего раздела?')) return
-    localStorage.removeItem('pdd-preview-draft-v1:' + sectionId)
-    setDrafts(prev => {
-      const next = { ...prev }
-      delete next[sectionId]
-      return next
-    })
-    setDraftStatus('Черновик удалён')
+  async function resetDraft() {
+    if (!window.confirm('Удалить серверный черновик раздела?')) return
+    if (draftSaving || draftLoading) return
+    setDraftSaving(true)
+    const { error: deleteError } = await supabase.from('pdd_course_drafts')
+      .delete().eq('section_id', sectionId)
+    if (deleteError) {
+      setDraftStatus('Не удалось удалить черновик: ' + deleteError.message)
+    } else {
+      localStorage.removeItem('pdd-preview-draft-v1:' + sectionId)
+      setDrafts(prev => { const next = { ...prev }; delete next[sectionId]; return next })
+      setDirty(false)
+      setDraftStatus('Черновик удалён, восстановлена исходная лекция')
+    }
+    setDraftSaving(false)
   }
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -158,7 +202,7 @@ export function AdminPddCoursePreviewPage() {
       <Link to="/admin/pdd" className="text-sm text-sky-700 underline">К редактору ПДД</Link>
     </div>
     <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
-      Только для администратора. 30 разделов из edu.dvizh-teory. Этот экран не публикует материалы и не меняет данные Supabase.
+      Только для администратора. 30 разделов из edu.dvizh-teory. Этот экран не публикует материалы для курсантов. Черновики сохраняются в закрытой таблице Supabase.
       Иллюстрации временно загружаются из исходного GitHub до переноса архива изображений на сайт.
     </p>
     {error && <p role="alert" className="text-red-700">{error}</p>}
@@ -166,7 +210,7 @@ export function AdminPddCoursePreviewPage() {
     {course && <>
       <label className="block space-y-1">
         <span className="text-sm font-medium">Раздел ({course.sections.length})</span>
-        <select value={sectionId} onChange={event => setSectionId(event.target.value)}
+        <select value={sectionId} onChange={event => { if (dirty && !window.confirm('Есть несохранённые изменения. Перейти без сохранения?')) return; setSectionId(event.target.value) }}
           className="w-full rounded-lg border bg-white p-3">
           {course.sections.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {s.title}</option>)}
         </select>
@@ -175,16 +219,18 @@ export function AdminPddCoursePreviewPage() {
         <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setEditing(value => !value)}>
           {editing ? 'Скрыть редактор' : 'Редактировать черновик'}
         </button>
-        <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" onClick={saveDraft}>Сохранить локально</button>
-        <button type="button" className="rounded border px-3 py-2 text-sm" onClick={resetDraft}>Сбросить черновик</button>
+        <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" onClick={() => void saveDraft()} disabled={draftSaving || draftLoading}>Сохранить в Supabase</button>
+        <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => void resetDraft()} disabled={draftSaving || draftLoading}>Удалить черновик</button>
         <span role="status" className="text-sm text-muted-foreground">{draftStatus}</span>
       </div>}
-      {section && editing && <PddDraftEditor key={section.id} blocks={section.blocks}
+      {section && editing && !draftLoading && <PddDraftEditor key={section.id} blocks={section.blocks}
         onChange={blocks => {
           setDrafts(prev => ({ ...prev, [sectionId]: blocks }))
+          setDirty(true)
           setDraftStatus('Есть несохранённые изменения')
         }} />}
-      {section && <Card key={section.id}>
+      {draftLoading && <p role="status">Загрузка черновика...</p>}
+      {section && !draftLoading && <Card key={section.id}>
         <CardHeader><CardTitle>{section.title}</CardTitle></CardHeader>
         <CardContent className="space-y-5">
           {section.blocks.map((block, index) => <PreviewBlock key={index} block={block} />)}
