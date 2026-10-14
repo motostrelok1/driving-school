@@ -104,6 +104,8 @@ export function AdminPddCoursePreviewPage() {
   const [draftLoading, setDraftLoading] = useState(true)
   const [draftSaving, setDraftSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [revisions, setRevisions] = useState<Array<{ id: number; saved_at: string; change_kind: string }>>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   useEffect(() => {
     const controller = new AbortController()
     fetch('/course-import/sections.json', { signal: controller.signal })
@@ -158,6 +160,30 @@ export function AdminPddCoursePreviewPage() {
     return () => { active = false }
   }, [sectionId])
 
+  async function loadHistory() {
+    setHistoryLoading(true)
+    const { data, error: historyError } = await supabase.from('pdd_course_draft_revisions')
+      .select('id,saved_at,change_kind').eq('section_id', sectionId)
+      .order('id', { ascending: false }).limit(30)
+    if (historyError) setDraftStatus('Не удалось загрузить историю: ' + historyError.message)
+    else setRevisions(data ?? [])
+    setHistoryLoading(false)
+  }
+
+  async function restoreRevision(revisionId: number) {
+    if (dirty && !window.confirm('Несохранённые изменения будут заменены версией из истории. Продолжить?')) return
+    const { data, error: revisionError } = await supabase.from('pdd_course_draft_revisions')
+      .select('blocks').eq('id', revisionId).eq('section_id', sectionId).single()
+    if (revisionError || !data || !Array.isArray(data.blocks)) {
+      setDraftStatus('Не удалось восстановить версию: ' + (revisionError?.message ?? 'неверные данные'))
+      return
+    }
+    setDrafts(prev => ({ ...prev, [sectionId]: data.blocks as Block[] }))
+    setDirty(true)
+    setEditing(true)
+    setDraftStatus('Версия загружена в редактор. Нажмите «Сохранить в Supabase», чтобы применить.')
+  }
+
   async function saveDraft() {
     if (!section || draftSaving || draftLoading) return
     setDraftSaving(true)
@@ -176,6 +202,7 @@ export function AdminPddCoursePreviewPage() {
       localStorage.removeItem('pdd-preview-draft-v1:' + sectionId)
       setDirty(false)
       setDraftStatus('Черновик сохранён в Supabase')
+      void loadHistory()
     }
     setDraftSaving(false)
   }
@@ -193,6 +220,7 @@ export function AdminPddCoursePreviewPage() {
       setDrafts(prev => { const next = { ...prev }; delete next[sectionId]; return next })
       setDirty(false)
       setDraftStatus('Черновик удалён, восстановлена исходная лекция')
+      void loadHistory()
     }
     setDraftSaving(false)
   }
@@ -236,6 +264,19 @@ export function AdminPddCoursePreviewPage() {
             setDraftStatus('Есть несохранённые изменения')
           }} />}
       </div>}
+      {section && <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-medium" onClick={event => {
+          if (!(event.currentTarget.parentElement as HTMLDetailsElement).open) void loadHistory()
+        }}>История черновика</summary>
+        {historyLoading && <p role="status">Загрузка истории...</p>}
+        <div className="mt-3 space-y-2">
+          {revisions.length === 0 && !historyLoading && <p className="text-sm text-muted-foreground">Сохранённых версий пока нет.</p>}
+          {revisions.map(revision => <div key={revision.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
+            <span>Версия #{revision.id} — {new Date(revision.saved_at).toLocaleString('ru-RU')} ({revision.change_kind === 'delete' ? 'перед удалением' : 'сохранение'})</span>
+            <button type="button" className="rounded border px-3 py-1" onClick={() => void restoreRevision(revision.id)}>Загрузить в редактор</button>
+          </div>)}
+        </div>
+      </details>}
       {draftLoading && <p role="status">Загрузка черновика...</p>}
       {section && !draftLoading && <Card key={section.id}>
         <CardHeader><CardTitle>{section.title}</CardTitle></CardHeader>
