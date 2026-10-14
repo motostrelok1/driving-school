@@ -105,6 +105,8 @@ export function AdminPddCoursePreviewPage() {
   const [draftSaving, setDraftSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [publishBusy, setPublishBusy] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyTab, setHistoryTab] = useState<'drafts' | 'publications'>('drafts')
   const [publishedPreview, setPublishedPreview] = useState<Block[] | null>(null)
   const [publishedVersions, setPublishedVersions] = useState<Array<{ id: number; created_at: string }>>([])
   const [revisions, setRevisions] = useState<Array<{ id: number; saved_at: string; change_kind: string }>>([])
@@ -291,14 +293,21 @@ export function AdminPddCoursePreviewPage() {
         <button type="button" aria-expanded={editing} aria-controls="pdd-course-draft-editor"
           className="rounded border px-3 py-2 text-sm"
           onClick={() => { setPublishedPreview(null); setEditing(current => !current) }}>
-          {editing ? 'Скрыть редактор' : 'Редактировать черновик'}
+          {editing ? 'Скрыть редактор' : 'Редактировать'}
         </button>
-        {editing && <>
-          <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" onClick={() => void saveDraft()} disabled={draftSaving || draftLoading}>Сохранить в Supabase</button>
-          <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => void resetDraft()} disabled={draftSaving || draftLoading}>Удалить черновик</button>
-        </>}
+        <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white"
+          disabled={draftSaving || draftLoading || publishBusy} onClick={() => void saveDraft()}>Сохранить</button>
+        <button type="button" className="rounded border px-3 py-2 text-sm"
+          disabled={publishBusy || draftSaving || draftLoading || dirty}
+          onClick={() => void publishDraft()}>Опубликовать</button>
+        <button type="button" className="rounded border px-3 py-2 text-sm"
+          aria-expanded={historyOpen} aria-controls="pdd-course-history"
+          onClick={() => {
+            if (!historyOpen) { void loadHistory(); void loadPublishedVersions() }
+            setHistoryOpen(value => !value)
+          }}>История изменений</button>
         <span role="status" className="text-sm text-muted-foreground">{draftStatus}</span>
-        {!editing && dirty && <span className="text-sm text-amber-700">Есть несохранённые изменения в черновике</span>}
+        {dirty && <span className="text-sm text-amber-700">Есть несохранённые изменения</span>}
       </div>}
       {editing && <div id="pdd-course-draft-editor">
         {section && !draftLoading && <PddDraftEditor key={section.id} blocks={section.blocks}
@@ -308,28 +317,29 @@ export function AdminPddCoursePreviewPage() {
             setDraftStatus('Есть несохранённые изменения')
           }} />}
       </div>}
-      {section && <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer font-medium" onClick={event => {
-          if (!(event.currentTarget.parentElement as HTMLDetailsElement).open) void loadHistory()
-        }}>История черновика</summary>
-        {historyLoading && <p role="status">Загрузка истории...</p>}
-        <div className="mt-3 space-y-2">
-          {revisions.length === 0 && !historyLoading && <p className="text-sm text-muted-foreground">Сохранённых версий пока нет.</p>}
+      {section && historyOpen && <section id="pdd-course-history" className="rounded-lg border p-3 space-y-3">
+        <h2 className="font-semibold">История изменений</h2>
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Тип истории">
+          <button type="button" role="tab" aria-selected={historyTab === 'drafts'}
+            className={`rounded px-3 py-2 text-sm ${historyTab === 'drafts' ? 'bg-sky-100 font-semibold' : 'border'}`}
+            onClick={() => setHistoryTab('drafts')}>Черновики</button>
+          <button type="button" role="tab" aria-selected={historyTab === 'publications'}
+            className={`rounded px-3 py-2 text-sm ${historyTab === 'publications' ? 'bg-sky-100 font-semibold' : 'border'}`}
+            onClick={() => setHistoryTab('publications')}>Публикации</button>
+        </div>
+        {historyTab === 'drafts' ? <div role="tabpanel" className="space-y-2">
+          <p className="text-sm text-muted-foreground">Восстановление загружает версию в редактор. Чтобы применить, нажмите «Сохранить».</p>
+          {historyLoading && <p role="status">Загрузка истории...</p>}
+          {!historyLoading && revisions.length === 0 && <p className="text-sm">Сохранённых версий пока нет.</p>}
           {revisions.map(revision => <div key={revision.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
             <span>Версия #{revision.id} — {new Date(revision.saved_at).toLocaleString('ru-RU')} ({revision.change_kind === 'delete' ? 'перед удалением' : 'сохранение'})</span>
             <button type="button" className="rounded border px-3 py-1" onClick={() => void restoreRevision(revision.id)}>Загрузить в редактор</button>
           </div>)}
-        </div>
-      </details>}
-      {section && <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer font-medium" onClick={event => {
-          if (!(event.currentTarget.parentElement as HTMLDetailsElement).open) void loadPublishedVersions()
-        }}>Публикации (пока недоступны курсантам)</summary>
-        <div className="mt-3 space-y-3">
-          <p className="text-sm text-muted-foreground">Публикация сохраняет отдельную версию в Supabase. Учебник курсантов не изменяется.</p>
-          <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white"
-            disabled={publishBusy || draftLoading || draftSaving || dirty}
-            onClick={() => void publishDraft()}>Опубликовать сохранённый черновик</button>
+          <button type="button" className="rounded border border-red-300 px-3 py-2 text-sm text-red-700"
+            disabled={draftSaving || draftLoading} onClick={() => void resetDraft()}>Удалить текущий черновик</button>
+        </div> : <div role="tabpanel" className="space-y-2">
+          <p className="text-sm text-muted-foreground">Опубликованные версии пока не видны курсантам. Откат не меняет черновик.</p>
+          {publishedVersions.length === 0 && <p className="text-sm">Публикаций пока нет.</p>}
           {publishedVersions.map(version => <div key={version.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
             <span>Публикация #{version.id} — {new Date(version.created_at).toLocaleString('ru-RU')}</span>
             <div className="flex flex-wrap gap-2">
@@ -338,8 +348,8 @@ export function AdminPddCoursePreviewPage() {
                 onClick={() => void rollbackPublished(version.id)}>Вернуть эту версию</button>
             </div>
           </div>)}
-        </div>
-      </details>}
+        </div>}
+      </section>}
       {publishedPreview && <div className="flex flex-wrap items-center gap-3 rounded border border-sky-300 bg-sky-50 p-3 text-sm"><strong>Просмотр опубликованной версии (не черновик)</strong><button type="button" className="rounded border bg-white px-3 py-1" onClick={() => setPublishedPreview(null)}>Вернуться к черновику</button></div>}
       {draftLoading && <p role="status">Загрузка черновика...</p>}
       {section && !draftLoading && <Card key={section.id}>
