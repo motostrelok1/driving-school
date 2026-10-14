@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { usePddArticle } from '@/features/admin/useAdmin'
 import { useTickets } from '@/features/tickets/useTickets'
 import { pddTopics } from '@/pages/pddTopics'
-import { usePublishedPdd, PddPublishedList, getReadPddIds } from '@/pages/StudentPublishedPddPage'
+import { usePublishedPdd, PddPublishedList, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
 import { cn } from '@/utils/cn'
 
 function getTicketImageSrc(image: string) {
@@ -74,6 +74,7 @@ const courseVideos = [
 
 export function StudentTheoryCoursePage() {
   const { sections: publishedSections, loading: pddLoading, error: pddError } = usePublishedPdd()
+  const { readIds: readTopicIds } = usePddReadProgress()
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(false)
   const [isPddOpen, setIsPddOpen] = useState(false)
   const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null)
@@ -84,9 +85,6 @@ export function StudentTheoryCoursePage() {
       return []
     }
   })
-  const [readTopicIds, setReadTopicIds] = useState<string[]>(() =>
-    getReadPddIds()
-  )
   const watchedCount = courseVideos.filter((video) => watchedVideoIds.includes(video.id)).length
   const readPddCount = publishedSections.filter((topic) => readTopicIds.includes(topic.id)).length
 
@@ -94,19 +92,6 @@ export function StudentTheoryCoursePage() {
     localStorage.setItem('watched-theory-videos', JSON.stringify(watchedVideoIds))
   }, [watchedVideoIds])
 
-  useEffect(() => {
-    function syncReadTopics() {
-      setReadTopicIds(getStoredStringList('read-pdd-topics'))
-    }
-
-    window.addEventListener('focus', syncReadTopics)
-    window.addEventListener('storage', syncReadTopics)
-
-    return () => {
-      window.removeEventListener('focus', syncReadTopics)
-      window.removeEventListener('storage', syncReadTopics)
-    }
-  }, [])
 
   function markVideoWatched(videoId: string) {
     setWatchedVideoIds((current) =>
@@ -231,7 +216,7 @@ export function StudentTheoryCoursePage() {
               <div className="space-y-2 border-t border-border p-3">
                 {pddLoading ? <p>Загрузка разделов...</p> : pddError
                   ? <p role="alert" className="text-red-700">{pddError}</p>
-                  : <PddPublishedList sections={publishedSections}/>}
+                  : <PddPublishedList sections={publishedSections} readIds={readTopicIds}/>}
 
               </div>
             ) : null}

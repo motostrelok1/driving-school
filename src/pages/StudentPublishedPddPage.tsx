@@ -22,12 +22,27 @@ export function usePublishedPdd() {
   return { sections, loading, error }
 }
 const READ_KEY = 'read-pdd-published'
+export function usePddReadProgress() {
+  const [readIds, setReadIds] = useState<string[]>([])
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      const { data, error: readError } = await supabase.from('pdd_section_read_progress').select('section_id')
+      if (!active) return
+      if (readError) setError(readError.message)
+      else setReadIds((data ?? []).map(item => item.section_id))
+    })()
+    return () => { active = false }
+  }, [])
+  return { readIds, error }
+}
 export function getReadPddIds() {
   try { const ids: unknown = JSON.parse(localStorage.getItem(READ_KEY) ?? '[]'); return Array.isArray(ids) ? ids.filter(x => typeof x === 'string') as string[] : [] }
   catch { return [] }
 }
-export function PddPublishedList({ sections }: { sections: PddSection[] }) {
-  const read = getReadPddIds()
+export function PddPublishedList({ sections, readIds = [] }: { sections: PddSection[]; readIds?: string[] }) {
+  const read = readIds
   return <div className="space-y-2">{sections.map((s, i) =>
     <Link key={s.id} to={'/student/theory/course/pdd/' + s.id}
       className="flex rounded-lg border bg-white p-3 text-sm hover:bg-slate-50">
@@ -81,11 +96,12 @@ function BlockView({ block }: { block: PddBlock }) {
 }
 export function StudentPublishedPddPage() {
   const { sections, loading, error } = usePublishedPdd()
+  const progress = usePddReadProgress()
   return <div className="space-y-5">
     <h1 className="text-2xl font-bold">Правила дорожного движения</h1>
     {loading && <p>Загрузка учебника...</p>}
     {error && <p role="alert" className="text-red-700">{error}</p>}
-    {!loading && !error && <PddPublishedList sections={sections}/>}
+    {!loading && !error && <PddPublishedList sections={sections} readIds={progress.readIds}/>}
     <Link to="/student/theory/course" className="text-sky-700 underline">Назад к курсу</Link>
   </div>
 }
@@ -93,24 +109,34 @@ export function StudentPublishedPddTopicPage() {
   const { topicId } = useParams()
   const { sections, loading, error } = usePublishedPdd()
   const section = sections.find(s => s.id === topicId)
+  const [progressMessage, setProgressMessage] = useState('')
   useEffect(() => {
     if (!section) return
+    let saved = false
     const onScroll = () => {
-      if (window.scrollY + window.innerHeight < document.documentElement.scrollHeight - 24) return
-      const current = getReadPddIds()
-      if (!current.includes(section.id)) {
-        localStorage.setItem(READ_KEY, JSON.stringify([...current, section.id]))
-        window.dispatchEvent(new Event('storage'))
-      }
+      if (saved || window.scrollY + window.innerHeight < document.documentElement.scrollHeight - 24) return
+      saved = true
+      void (async () => {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) { setProgressMessage('Не удалось сохранить прочтение: нет авторизации'); saved = false; return }
+        const { error: saveError } = await supabase.from('pdd_section_read_progress')
+          .upsert({ user_id: user.id, section_id: section.id }, { onConflict: 'user_id,section_id', ignoreDuplicates: true })
+        if (saveError) { setProgressMessage('Ошибка сохранения прогресса: ' + saveError.message); saved = false }
+        else setProgressMessage('Раздел отмечен как прочитанный')
+      })()
     }
+    onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    window.addEventListener('resize', onScroll)
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll) }
   }, [section])
+
   return <div className="space-y-5">
     {loading && <p>Загрузка...</p>}
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {!loading && !error && !section && <p>Раздел не опубликован или находится в архиве.</p>}
     {section && <>
+      {progressMessage && <p role="status" className="text-sm text-slate-600">{progressMessage}</p>}
       <h1 className="text-2xl font-bold">{section.title}</h1>
       <article className="space-y-5 rounded-xl border bg-white p-4">
         {section.blocks.map((block, i) => <BlockView key={i} block={block}/>)}
