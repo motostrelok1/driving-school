@@ -52,13 +52,13 @@ const StudentTheoryCoursePage = lazy(() =>
   }))
 )
 const StudentPddTopicPage = lazy(() =>
-  import('@/pages/StudentTheorySectionPage').then((module) => ({
-    default: module.StudentPddTopicPage,
+  import('@/pages/StudentPublishedPddPage').then((module) => ({
+    default: module.StudentPublishedPddTopicPage,
   }))
 )
 const StudentPddPage = lazy(() =>
-  import('@/pages/StudentTheorySectionPage').then((module) => ({
-    default: module.StudentPddPage,
+  import('@/pages/StudentPublishedPddPage').then((module) => ({
+    default: module.StudentPublishedPddPage,
   }))
 )
 const StudentTheoryTicketsPage = lazy(() =>

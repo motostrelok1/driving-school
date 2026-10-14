@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { usePddArticle } from '@/features/admin/useAdmin'
 import { useTickets } from '@/features/tickets/useTickets'
 import { pddTopics } from '@/pages/pddTopics'
+import { usePublishedPdd, PddPublishedList, getReadPddIds } from '@/pages/StudentPublishedPddPage'
 import { cn } from '@/utils/cn'
 
 function getTicketImageSrc(image: string) {
@@ -72,6 +73,7 @@ const courseVideos = [
 ]
 
 export function StudentTheoryCoursePage() {
+  const { sections: publishedSections, loading: pddLoading, error: pddError } = usePublishedPdd()
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(false)
   const [isPddOpen, setIsPddOpen] = useState(false)
   const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null)
@@ -83,10 +85,10 @@ export function StudentTheoryCoursePage() {
     }
   })
   const [readTopicIds, setReadTopicIds] = useState<string[]>(() =>
-    getStoredStringList('read-pdd-topics')
+    getReadPddIds()
   )
   const watchedCount = courseVideos.filter((video) => watchedVideoIds.includes(video.id)).length
-  const readPddCount = pddTopics.filter((topic) => readTopicIds.includes(topic.id)).length
+  const readPddCount = publishedSections.filter((topic) => readTopicIds.includes(topic.id)).length
 
   useEffect(() => {
     localStorage.setItem('watched-theory-videos', JSON.stringify(watchedVideoIds))
@@ -217,32 +219,20 @@ export function StudentTheoryCoursePage() {
               <span className="min-w-0 flex-1">
                 <span className="block font-medium text-primary">ПДД</span>
                 <span className="block text-sm text-muted-foreground">
-                  Просмотрено {readPddCount} из {pddTopics.length}
+                  Просмотрено {readPddCount} из {publishedSections.length}
                 </span>
               </span>
-              {readPddCount === pddTopics.length ? (
+              {publishedSections.length > 0 && readPddCount === publishedSections.length ? (
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
               ) : null}
             </button>
 
             {isPddOpen ? (
               <div className="space-y-2 border-t border-border p-3">
-                {pddTopics.map((topic) => {
-                  const isRead = readTopicIds.includes(topic.id)
+                {pddLoading ? <p>Загрузка разделов...</p> : pddError
+                  ? <p role="alert" className="text-red-700">{pddError}</p>
+                  : <PddPublishedList sections={publishedSections}/>}
 
-                  return (
-                    <Link
-                      key={topic.id}
-                      to={`/student/theory/course/pdd/${topic.id}`}
-                      className="flex items-center gap-3 rounded-lg border border-border bg-white p-3 text-sm font-medium text-primary transition-colors hover:bg-muted"
-                    >
-                      <span className="min-w-0 flex-1">{topic.id}. {topic.title}</span>
-                      {isRead ? (
-                        <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-                      ) : null}
-                    </Link>
-                  )
-                })}
               </div>
             ) : null}
           </div>
