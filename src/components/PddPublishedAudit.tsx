@@ -96,12 +96,16 @@ export function PddPublishedAudit() {
       const { data: pointers, error: pointerError } = await supabase.from('pdd_course_publications')
         .select('section_id,revision_id')
       if (pointerError) throw pointerError
+      const { data: catalog, error: catalogError } = await supabase.from('pdd_course_catalog')
+        .select('section_id,is_archived')
+      if (catalogError) throw catalogError
+      const activeIds = new Set((catalog ?? []).filter(item => !item.is_archived).map(item => item.section_id))
+      if (!activeIds.size) throw new Error('Каталог разделов пуст')
       const pubs = (pointers ?? []) as Publication[]
       const ids = pubs.map(p => p.section_id)
       const issues: string[] = []
-      const metrics: AuditResult = { checked: 0, total: EXPECTED.size, issues, blocks: 0, questions: 0, images: 0 }
-      for (const id of EXPECTED) if (!ids.includes(id)) issues.push(id + ': нет опубликованной версии')
-      for (const id of ids) if (!EXPECTED.has(id)) issues.push(id + ': неожиданный раздел')
+      const metrics: AuditResult = { checked: 0, total: activeIds.size, issues, blocks: 0, questions: 0, images: 0 }
+      for (const id of activeIds) if (!ids.includes(id)) issues.push(id + ': нет опубликованной версии')
       const revisionIds = pubs.map(p => p.revision_id).filter((x): x is number => typeof x === 'number')
       const { data: revisions, error: revisionError } = revisionIds.length
         ? await supabase.from('pdd_course_published_revisions').select('id,section_id,blocks').in('id', revisionIds)
@@ -109,7 +113,7 @@ export function PddPublishedAudit() {
       if (revisionError) throw revisionError
       const byId = new Map(((revisions ?? []) as Revision[]).map(r => [r.id, r]))
       for (const pub of pubs) {
-        if (!EXPECTED.has(pub.section_id)) continue
+        if (!activeIds.has(pub.section_id)) continue
         const rev = pub.revision_id === null ? undefined : byId.get(pub.revision_id)
         if (!rev || rev.section_id !== pub.section_id) {
           issues.push(pub.section_id + ': версия публикации не найдена')
@@ -132,7 +136,7 @@ export function PddPublishedAudit() {
     <h2 className="font-semibold">Проверка опубликованного курса</h2>
     <p className="text-sm text-muted-foreground">Проверяются только текущие опубликованные версии 30 разделов в Supabase. Данные не изменяются.</p>
     <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" disabled={busy}
-      onClick={() => void runAudit()}>{busy ? 'Проверяем...' : 'Проверить 30 публикаций'}</button>
+      onClick={() => void runAudit()}>{busy ? 'Проверяем...' : 'Проверить публикации каталога'}</button>
     <div className="rounded-lg border p-3 space-y-2">
       <h3 className="font-medium">Первоначальная публикация недостающих тем</h3>
       <p className="text-sm text-muted-foreground">Сначала посмотреть список, затем подтвердить. Уже опубликованные темы останутся без изменений.</p>
