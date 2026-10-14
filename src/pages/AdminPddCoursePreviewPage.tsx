@@ -290,7 +290,7 @@ export function AdminPddCoursePreviewPage() {
       {section && <div className="flex flex-wrap items-center gap-2">
         <button type="button" aria-expanded={editing} aria-controls="pdd-course-draft-editor"
           className="rounded border px-3 py-2 text-sm"
-          onClick={() => setEditing(current => !current)}>
+          onClick={() => { setPublishedPreview(null); setEditing(current => !current) }}>
           {editing ? 'Скрыть редактор' : 'Редактировать черновик'}
         </button>
         {editing && <>
