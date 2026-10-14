@@ -1,4 +1,4 @@
--- Run ONLY on disposable driving-school-test after migration 0042.
+-- Run ONLY on disposable driving-school-test after migration 0054.
 -- Do NOT run on production. All changes are rolled back.
 BEGIN;
 CREATE FUNCTION pg_temp.assert_true(ok BOOLEAN, label TEXT) RETURNS void LANGUAGE plpgsql AS $$
