@@ -70,7 +70,12 @@ function PreviewBlock({ block }: { block: Block }) {
       return <figure className={`my-4 flex flex-col ${block.align === "left" ? "items-start" : block.align === "right" ? "items-end" : "items-center"}`}>
         {valid || stored
           ? <img loading="lazy" className="h-auto max-w-full rounded" width={block.w} height={block.h}
-              src={valid ? SOURCE_MEDIA + block.src : block.src} alt="Иллюстрация к лекции ПДД" />
+              src={valid ? '/course-import/' + block.src : block.src} alt="Иллюстрация к лекции ПДД"
+              onError={event => {
+                if (valid && event.currentTarget.getAttribute('src') !== SOURCE_MEDIA + block.src) {
+                  event.currentTarget.src = SOURCE_MEDIA + block.src
+                }
+              }} />
           : <p className="text-red-600">Неподдерживаемый путь изображения</p>}
         {block.caption?.trim() && <figcaption className="mt-2 max-w-full text-center text-sm text-muted-foreground whitespace-pre-line">{block.caption}</figcaption>}
       </figure>
