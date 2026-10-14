@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
 
       const { data: thread } = await adminSupabase
         .from("message_threads")
-        .select("id, subject, created_by")
+        .select("id, subject, created_by, closed_at")
         .eq("id", threadId)
         .maybeSingle();
       if (!thread?.created_by) return jsonResponse({ error: "Conversation not found" }, 404);
