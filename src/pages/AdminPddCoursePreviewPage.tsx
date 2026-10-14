@@ -104,6 +104,8 @@ export function AdminPddCoursePreviewPage() {
   const [draftLoading, setDraftLoading] = useState(true)
   const [draftSaving, setDraftSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [publishBusy, setPublishBusy] = useState(false)
+  const [publishedVersions, setPublishedVersions] = useState<Array<{ id: number; created_at: string }>>([])
   const [revisions, setRevisions] = useState<Array<{ id: number; saved_at: string; change_kind: string }>>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   useEffect(() => {
@@ -182,6 +184,34 @@ export function AdminPddCoursePreviewPage() {
     setDirty(true)
     setEditing(true)
     setDraftStatus('Версия загружена в редактор. Нажмите «Сохранить в Supabase», чтобы применить.')
+  }
+
+  async function loadPublishedVersions() {
+    const { data, error: versionError } = await supabase.from('pdd_course_published_revisions')
+      .select('id,created_at').eq('section_id', sectionId).order('id', { ascending: false }).limit(30)
+    if (versionError) setDraftStatus('Ошибка истории публикаций: ' + versionError.message)
+    else setPublishedVersions(data ?? [])
+  }
+
+  async function publishDraft() {
+    if (dirty) { setDraftStatus('Сначала сохраните изменения в Supabase'); return }
+    if (!window.confirm('Опубликовать сохранённый черновик в закрытом хранилище? Ученики пока не увидят эту версию.')) return
+    setPublishBusy(true)
+    const { error: publishError } = await supabase.rpc('publish_pdd_course_section', { p_section_id: sectionId })
+    setDraftStatus(publishError ? 'Ошибка публикации: ' + publishError.message : 'Версия опубликована в закрытом хранилище. Курс ученикам не переключён.')
+    if (!publishError) void loadPublishedVersions()
+    setPublishBusy(false)
+  }
+
+  async function rollbackPublished(id: number) {
+    if (!window.confirm('Создать новую опубликованную версию на основе выбранной?')) return
+    setPublishBusy(true)
+    const { error: rollbackError } = await supabase.rpc('rollback_pdd_course_section', {
+      p_section_id: sectionId, p_revision_id: id
+    })
+    setDraftStatus(rollbackError ? 'Ошибка отката: ' + rollbackError.message : 'Опубликованная версия восстановлена. Черновик не менялся.')
+    if (!rollbackError) void loadPublishedVersions()
+    setPublishBusy(false)
   }
 
   async function saveDraft() {
@@ -274,6 +304,22 @@ export function AdminPddCoursePreviewPage() {
           {revisions.map(revision => <div key={revision.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
             <span>Версия #{revision.id} — {new Date(revision.saved_at).toLocaleString('ru-RU')} ({revision.change_kind === 'delete' ? 'перед удалением' : 'сохранение'})</span>
             <button type="button" className="rounded border px-3 py-1" onClick={() => void restoreRevision(revision.id)}>Загрузить в редактор</button>
+          </div>)}
+        </div>
+      </details>}
+      {section && <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-medium" onClick={event => {
+          if (!(event.currentTarget.parentElement as HTMLDetailsElement).open) void loadPublishedVersions()
+        }}>Публикации (пока недоступны курсантам)</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-muted-foreground">Публикация сохраняет отдельную версию в Supabase. Учебник курсантов не изменяется.</p>
+          <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white"
+            disabled={publishBusy || draftLoading || draftSaving || dirty}
+            onClick={() => void publishDraft()}>Опубликовать сохранённый черновик</button>
+          {publishedVersions.map(version => <div key={version.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
+            <span>Публикация #{version.id} — {new Date(version.created_at).toLocaleString('ru-RU')}</span>
+            <button type="button" className="rounded border px-3 py-1" disabled={publishBusy}
+              onClick={() => void rollbackPublished(version.id)}>Вернуть эту версию</button>
           </div>)}
         </div>
       </details>}
