@@ -298,7 +298,7 @@ export function AdminPddCoursePreviewPage() {
       <Link to="/admin/pdd" className="text-sm text-sky-700 underline">К редактору ПДД</Link>
     </div>
     <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
-      Только для администратора. 30 разделов из edu.dvizh-teory. Этот экран не публикует материалы для курсантов. Черновики сохраняются в закрытой таблице Supabase.
+      Только для администратора. Исходный курс из 30 разделов edu.dvizh-teory; актуальный каталог может содержать дополнительные разделы. Этот экран не публикует материалы для курсантов. Черновики сохраняются в закрытой таблице Supabase.
       Иллюстрации временно загружаются из исходного GitHub до переноса архива изображений на сайт.
     </p>
     {error && <p role="alert" className="text-red-700">{error}</p>}
