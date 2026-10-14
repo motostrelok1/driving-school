@@ -65,7 +65,7 @@ export function StudentTheoryPage() {
     getStoredStringList('watched-theory-videos')
   )
   const { sections: pddSections, loading: pddLoading, error: pddError } = usePublishedPdd()
-  const { readIds: readTopicIds, error: progressError } = usePddReadProgress()
+  const { readIds: readTopicIds, error: progressError, loading: progressLoading } = usePddReadProgress()
   const [answeredMarathonQuestionIds, setAnsweredMarathonQuestionIds] = useState<string[]>(() =>
     getStoredStringList('answered-marathon-questions')
   )
@@ -108,17 +108,17 @@ export function StudentTheoryPage() {
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-semibold text-primary">Теоретический курс</h2>
                 <span className="text-sm font-semibold text-primary">
-                  {pddLoading || pddError || progressError ? '—' : `${theoryProgress}%`}
+                  {pddLoading || progressLoading || pddError || progressError ? '—' : `${theoryProgress}%`}
                 </span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-secondary"
-                  style={{ width: `${pddLoading || pddError || progressError ? 0 : theoryProgress}%` }}
+                  style={{ width: `${pddLoading || progressLoading || pddError || progressError ? 0 : theoryProgress}%` }}
                 />
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                {pddLoading ? 'Загрузка прогресса...' : pddError || progressError ? 'Не удалось загрузить прогресс ПДД' : `Пройдено ${completedTheoryItems} из ${totalTheoryItems}`}
+                {pddLoading || progressLoading ? 'Загрузка прогресса...' : pddError || progressError ? 'Не удалось загрузить прогресс ПДД' : `Пройдено ${completedTheoryItems} из ${totalTheoryItems}`}
               </p>
             </div>
           </div>
