@@ -2,10 +2,9 @@ import { useEffect, useState, type ElementType } from 'react'
 import { Link } from 'react-router-dom'
 import { Book, BookOpen, ClipboardCheck, Dumbbell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { usePublishedPdd, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
 
 const TOTAL_COURSE_VIDEOS = 5
-const TOTAL_PDD_TOPICS = 38
-const TOTAL_THEORY_ITEMS = TOTAL_COURSE_VIDEOS + TOTAL_PDD_TOPICS
 const TOTAL_MARATHON_QUESTIONS = 795
 
 function getStoredStringList(key: string) {
@@ -65,23 +64,20 @@ export function StudentTheoryPage() {
   const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>(() =>
     getStoredStringList('watched-theory-videos')
   )
-  const [readTopicIds, setReadTopicIds] = useState<string[]>(() =>
-    getStoredStringList('read-pdd-topics')
-  )
+  const { sections: pddSections, loading: pddLoading, error: pddError } = usePublishedPdd()
+  const { readIds: readTopicIds, error: progressError } = usePddReadProgress()
   const [answeredMarathonQuestionIds, setAnsweredMarathonQuestionIds] = useState<string[]>(() =>
     getStoredStringList('answered-marathon-questions')
   )
-  const completedTheoryItems = Math.min(
-    watchedVideoIds.length + readTopicIds.length,
-    TOTAL_THEORY_ITEMS
-  )
+  const totalTheoryItems = TOTAL_COURSE_VIDEOS + pddSections.length
+  const readPddCount = pddSections.filter(section => readTopicIds.includes(section.id)).length
+  const completedTheoryItems = Math.min(watchedVideoIds.length, TOTAL_COURSE_VIDEOS) + readPddCount
   const completedMarathonQuestions = Math.min(answeredMarathonQuestionIds.length, TOTAL_MARATHON_QUESTIONS)
-  const theoryProgress = Math.round((completedTheoryItems / TOTAL_THEORY_ITEMS) * 100)
+  const theoryProgress = totalTheoryItems > 0 ? Math.round((completedTheoryItems / totalTheoryItems) * 100) : 0
 
   useEffect(() => {
     function syncTheoryProgress() {
       setWatchedVideoIds(getStoredStringList('watched-theory-videos'))
-      setReadTopicIds(getStoredStringList('read-pdd-topics'))
       setAnsweredMarathonQuestionIds(getStoredStringList('answered-marathon-questions'))
     }
 
@@ -112,17 +108,17 @@ export function StudentTheoryPage() {
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-semibold text-primary">Теоретический курс</h2>
                 <span className="text-sm font-semibold text-primary">
-                  {theoryProgress}%
+                  {pddLoading || pddError || progressError ? '—' : `${theoryProgress}%`}
                 </span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-secondary"
-                  style={{ width: `${theoryProgress}%` }}
+                  style={{ width: `${pddLoading || pddError || progressError ? 0 : theoryProgress}%` }}
                 />
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Пройдено {completedTheoryItems} из {TOTAL_THEORY_ITEMS}
+                {pddLoading ? 'Загрузка прогресса...' : pddError || progressError ? 'Не удалось загрузить прогресс ПДД' : `Пройдено ${completedTheoryItems} из ${totalTheoryItems}`}
               </p>
             </div>
           </div>
