@@ -104,7 +104,7 @@ export function AdminPddCoursePreviewPage() {
   const [catalogError, setCatalogError] = useState('')
   const [sectionId, setSectionId] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get('section')
-    return requested && /^(s([1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti)$/.test(requested) ? requested : 's1'
+    return requested && /^(s([1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti|custom_[0-9a-f]{32})$/.test(requested) ? requested : 's1'
   })
   const [error, setError] = useState('')
   const [drafts, setDrafts] = useState<Record<string, Block[]>>({})
@@ -141,12 +141,13 @@ export function AdminPddCoursePreviewPage() {
     else { setCatalog(data ?? []); setCatalogError('') }
   }
   useEffect(() => { void loadCatalog() }, [])
-  const sourceSection = course?.sections.find(item => item.id === sectionId)
+  const sourceSection = course?.sections.find(item => item.id === sectionId) ?? (catalog.some(item => item.section_id === sectionId) ? { id: sectionId, title: catalog.find(item => item.section_id === sectionId)?.title ?? '', blocks: [] as Block[] } : undefined)
   const displayTitle = catalog.find(item => item.section_id === sectionId)?.title ?? sourceSection?.title
-  const sortedSections = course?.sections
-    .filter(section => !catalog.find(item => item.section_id === section.id)?.is_archived)
-    .sort((a, b) => (catalog.find(item => item.section_id === a.id)?.sort_order ?? 9999) -
-      (catalog.find(item => item.section_id === b.id)?.sort_order ?? 9999)) ?? []
+  const sortedSections = catalog.length
+    ? catalog.filter(item => !item.is_archived).map(item =>
+        course?.sections.find(section => section.id === item.section_id) ??
+        { id: item.section_id, title: item.title, blocks: [] as Block[] })
+    : course?.sections ?? []
   const section = sourceSection && (drafts[sectionId]
     ? { ...sourceSection, blocks: drafts[sectionId] }
     : sourceSection)
