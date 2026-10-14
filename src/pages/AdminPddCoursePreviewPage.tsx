@@ -305,7 +305,7 @@ export function AdminPddCoursePreviewPage() {
     {!course && !error && <p>Загрузка курса...</p>}
     {course && <>
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Раздел ({course.sections.length})</span>
+        <span className="text-sm font-medium">Разделы ({sortedSections.length})</span>
         <select value={sectionId} onChange={event => { if (dirty && !window.confirm('Есть несохранённые изменения. Перейти без сохранения?')) return; setSectionId(event.target.value) }}
           className="w-full rounded-lg border bg-white p-3">
           {sortedSections.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {catalog.find(item => item.section_id === s.id)?.title ?? s.title}</option>)}
