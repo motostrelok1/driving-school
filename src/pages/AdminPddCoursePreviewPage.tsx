@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PddDraftEditor } from '@/components/PddDraftEditor'
+import { PddPublishedAudit } from '@/components/PddPublishedAudit'
 import { supabase } from '@/lib/supabase'
 
 type Question = { q: string; options: string[]; correct: number; explain?: string }
@@ -294,6 +295,7 @@ export function AdminPddCoursePreviewPage() {
           {course.sections.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {s.title}</option>)}
         </select>
       </label>
+      <PddPublishedAudit />
       {section && <div className="flex flex-wrap items-center gap-2">
         <button type="button" aria-expanded={editing} aria-controls="pdd-course-draft-editor"
           className="rounded border px-3 py-2 text-sm"
