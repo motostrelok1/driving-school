@@ -123,8 +123,14 @@ export function PddDraftEditor({ blocks, onChange }: {
             {active.src && <div className="rounded-lg bg-slate-50 p-2">
               <img alt="Миниатюра выбранного изображения" className="mx-auto max-h-48 max-w-full object-contain"
                 src={/^img\/[a-zA-Z0-9_-]+\.png$/.test(active.src)
-                  ? 'https://raw.githubusercontent.com/motostrelok1/edu.dvizh-teory/d431cc760d8ba4ebdee2824e595436dc8cc56bd2/public/' + active.src
-                  : active.src} />
+                  ? '/course-import/' + active.src
+                  : active.src}
+                onError={event => {
+                  if (/^img\/[a-zA-Z0-9_-]+\.png$/.test(active.src ?? '')) {
+                    const fallback = 'https://raw.githubusercontent.com/motostrelok1/edu.dvizh-teory/d431cc760d8ba4ebdee2824e595436dc8cc56bd2/public/' + active.src
+                    if (event.currentTarget.getAttribute('src') !== fallback) event.currentTarget.src = fallback
+                  }
+                }} />
             </div>}
             <details className="text-sm"><summary className="cursor-pointer">Дополнительно: адрес изображения</summary>
               <textarea className="mt-2 w-full rounded border p-2" value={active.src ?? ''}
