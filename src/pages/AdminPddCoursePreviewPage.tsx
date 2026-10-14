@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PddDraftEditor } from '@/components/PddDraftEditor'
 import { PddPublishedAudit } from '@/components/PddPublishedAudit'
+import { PddSectionCatalog, type CatalogEntry } from '@/components/PddSectionCatalog'
 import { supabase } from '@/lib/supabase'
 
 type Question = { q: string; options: string[]; correct: number; explain?: string }
@@ -99,6 +100,8 @@ function PreviewBlock({ block }: { block: Block }) {
 
 export function AdminPddCoursePreviewPage() {
   const [course, setCourse] = useState<Course | null>(null)
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([])
+  const [catalogError, setCatalogError] = useState('')
   const [sectionId, setSectionId] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get('section')
     return requested && /^(s([1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti)$/.test(requested) ? requested : 's1'
@@ -131,7 +134,19 @@ export function AdminPddCoursePreviewPage() {
       .catch(err => { if (!controller.signal.aborted) setError(String(err)) })
     return () => controller.abort()
   }, [])
+  async function loadCatalog() {
+    const { data, error: catalogLoadError } = await supabase.from('pdd_course_catalog')
+      .select('section_id,title,sort_order,is_archived').order('sort_order')
+    if (catalogLoadError) setCatalogError('Не удалось загрузить каталог: ' + catalogLoadError.message)
+    else { setCatalog(data ?? []); setCatalogError('') }
+  }
+  useEffect(() => { void loadCatalog() }, [])
   const sourceSection = course?.sections.find(item => item.id === sectionId)
+  const displayTitle = catalog.find(item => item.section_id === sectionId)?.title ?? sourceSection?.title
+  const sortedSections = course?.sections
+    .filter(section => !catalog.find(item => item.section_id === section.id)?.is_archived)
+    .sort((a, b) => (catalog.find(item => item.section_id === a.id)?.sort_order ?? 9999) -
+      (catalog.find(item => item.section_id === b.id)?.sort_order ?? 9999)) ?? []
   const section = sourceSection && (drafts[sectionId]
     ? { ...sourceSection, blocks: drafts[sectionId] }
     : sourceSection)
@@ -292,9 +307,11 @@ export function AdminPddCoursePreviewPage() {
         <span className="text-sm font-medium">Раздел ({course.sections.length})</span>
         <select value={sectionId} onChange={event => { if (dirty && !window.confirm('Есть несохранённые изменения. Перейти без сохранения?')) return; setSectionId(event.target.value) }}
           className="w-full rounded-lg border bg-white p-3">
-          {course.sections.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {s.title}</option>)}
+          {sortedSections.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {catalog.find(item => item.section_id === s.id)?.title ?? s.title}</option>)}
         </select>
       </label>
+      <PddSectionCatalog entries={catalog} onChange={() => void loadCatalog()} />
+      {catalogError && <p role="alert" className="text-sm text-red-700">{catalogError}</p>}
       <PddPublishedAudit />
       {section && <div className="flex flex-wrap items-center gap-2">
         <button type="button" aria-expanded={editing} aria-controls="pdd-course-draft-editor"
@@ -363,7 +380,7 @@ export function AdminPddCoursePreviewPage() {
       {publishedPreview && <div className="flex flex-wrap items-center gap-3 rounded border border-sky-300 bg-sky-50 p-3 text-sm"><strong>Просмотр опубликованной версии (не черновик)</strong><button type="button" className="rounded border bg-white px-3 py-1" onClick={() => setPublishedPreview(null)}>Вернуться к черновику</button></div>}
       {draftLoading && <p role="status">Загрузка черновика...</p>}
       {section && !draftLoading && <Card key={section.id}>
-        <CardHeader><CardTitle>{section.title}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{displayTitle}</CardTitle></CardHeader>
         <CardContent className="space-y-5">
           {(publishedPreview ?? section.blocks).map((block, index) => <PreviewBlock key={index} block={block} />)}
         </CardContent>
