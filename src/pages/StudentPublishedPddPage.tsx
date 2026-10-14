@@ -69,9 +69,13 @@ function BlockView({ block }: { block: PddBlock }) {
         {block.caption && <figcaption className="text-center text-sm text-slate-500">{block.caption}</figcaption>}
       </figure> : <p className="text-red-700">Изображение недоступно</p>
     }
-    case 'link': return block.url && /^https:\/\//.test(block.url)
-      ? <a href={block.url} target="_blank" rel="noopener noreferrer" className="text-sky-700 underline">{block.label || block.url}</a>
-      : <span>{block.label || 'Ссылка на раздел'}</span>
+    case 'link': {
+      const internal = /^\/admin\/pdd\/preview\?section=(s(?:[1-9]|1[0-9]|2[0-6])|signs|markup|dopusk|neispravnosti|custom_[0-9a-f]{32})$/.exec(block.url ?? '')
+      return internal ? <Link className="text-sky-700 underline" to={'/student/theory/course/pdd/' + internal[1]}>{block.label || 'Открыть раздел'}</Link>
+        : block.url && /^https:\/\//.test(block.url)
+          ? <a href={block.url} target="_blank" rel="noopener noreferrer" className="text-sky-700 underline">{block.label || block.url}</a>
+          : <span>{block.label || 'Ссылка недоступна'}</span>
+    }
     default: return null
   }
 }
