@@ -48,11 +48,50 @@ function auditSection(id: string, blocks: unknown, issues: string[], metrics: Au
 
 export function PddPublishedAudit() {
   const [busy, setBusy] = useState(false)
+  const [preview, setPreview] = useState<string[] | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [publishStatus, setPublishStatus] = useState('')
   const [result, setResult] = useState<AuditResult | null>(null)
+
+  async function prepareMissing() {
+    setPreview(null)
+    setPublishStatus('')
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.from('pdd_course_publications').select('section_id')
+      if (error) throw error
+      const existing = new Set((data ?? []).map(row => row.section_id))
+      setPreview([...EXPECTED].filter(id => !existing.has(id)))
+    } catch (error) {
+      setPublishStatus('Ошибка проверки: ' + (error instanceof Error ? error.message : String(error)))
+    } finally { setBusy(false) }
+  }
+
+  async function publishMissing() {
+    if (!preview || preview.length === 0 || publishing) return
+    if (!window.confirm('Добавить отсутствующие публикации? Существующие версии не изменятся. Курсанты пока не увидят этот курс.')) return
+    setPublishing(true)
+    try {
+      const response = await fetch('/course-import/sections.json', { cache: 'no-store' })
+      if (!response.ok) throw new Error('Исходный курс недоступен')
+      const course: unknown = await response.json()
+      if (!course || typeof course !== 'object' || !('sections' in course) ||
+          !Array.isArray(course.sections) || course.sections.length !== 30)
+        throw new Error('Некорректный файл исходного курса')
+      const { data, error } = await supabase.rpc('publish_missing_pdd_course_sections', { p_sections: course.sections })
+      if (error) throw error
+      setPreview(null)
+      setPublishStatus('Добавлено публикаций: ' + data + '. Выполните проверку 30 публикаций.')
+      void runAudit()
+    } catch (error) {
+      setPublishStatus('Ошибка первоначальной публикации: ' + (error instanceof Error ? error.message : String(error)))
+    } finally { setPublishing(false) }
+  }
 
   async function runAudit() {
     setBusy(true)
     setResult(null)
+    setPreview(null)
     try {
       const { data: pointers, error: pointerError } = await supabase.from('pdd_course_publications')
         .select('section_id,revision_id')
@@ -94,6 +133,21 @@ export function PddPublishedAudit() {
     <p className="text-sm text-muted-foreground">Проверяются только текущие опубликованные версии 30 разделов в Supabase. Данные не изменяются.</p>
     <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" disabled={busy}
       onClick={() => void runAudit()}>{busy ? 'Проверяем...' : 'Проверить 30 публикаций'}</button>
+    <div className="rounded-lg border p-3 space-y-2">
+      <h3 className="font-medium">Первоначальная публикация недостающих тем</h3>
+      <p className="text-sm text-muted-foreground">Сначала посмотреть список, затем подтвердить. Уже опубликованные темы останутся без изменений.</p>
+      <button type="button" className="rounded border px-3 py-2 text-sm" disabled={busy || publishing}
+        onClick={() => void prepareMissing()}>Показать недостающие темы</button>
+      {preview && <div className="space-y-2 text-sm">
+        <p>Не опубликовано: {preview.length} из 30.</p>
+        {preview.length > 0 && <>
+          <p className="break-words">{preview.join(', ')}</p>
+          <button type="button" className="rounded bg-sky-700 px-3 py-2 text-white" disabled={publishing}
+            onClick={() => void publishMissing()}>{publishing ? 'Публикуем...' : 'Опубликовать недостающие'}</button>
+        </>}
+      </div>}
+      {publishStatus && <p role="status" className="text-sm">{publishStatus}</p>}
+    </div>
     {result && <div role="status" className="space-y-2 text-sm">
       <p><strong>{result.issues.length ? 'Есть проблемы' : 'Структура публикаций проверена'}</strong> — {result.checked}/{result.total} разделов; {result.blocks} блоков; {result.questions} вопросов; {result.images} изображений.</p>
       {result.issues.length > 0 && <ul className="list-disc space-y-1 pl-5 text-red-700">
