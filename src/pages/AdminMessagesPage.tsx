@@ -79,6 +79,18 @@ export function AdminMessagesPage() {
   }, [toast])
 
   const [activeChat, setActiveChat] = useState<ChatThread | null>(null)
+  const { data: chatClosedAt } = useQuery({
+    queryKey: ['admin-thread-closed-at',activeChat?.thread_id],
+    queryFn: async () => {
+      const { data,error } = await supabase.from('message_threads')
+        .select('closed_at').eq('id',activeChat!.thread_id).single()
+      if(error) throw error
+      return data.closed_at as string | null
+    },
+    enabled: !!activeChat,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
   const [conversation, setConversation] = useState<ConversationItem[]>([])
   const [conversationLoading, setConversationLoading] = useState(false)
   const [adminReply, setAdminReply] = useState('')
@@ -875,6 +887,8 @@ export function AdminMessagesPage() {
         <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <h2 className="truncate font-semibold text-primary">{activeChat.is_group ? (activeChat.subject || 'Групповой чат') : (activeChat.participant_names[0] || activeChat.subject || 'Переписка')}</h2>
+            {chatClosedAt ? <p className="text-xs text-muted-foreground">Чат закрыт — только история</p> : null}
+            {chatClosedAt ? <p className="text-xs text-muted-foreground">Чат закрыт — только история</p> : null}
             {activeChat.is_group ? (
               <button
                 type="button"
@@ -910,12 +924,12 @@ export function AdminMessagesPage() {
           })}
           <div ref={conversationEndRef} />
         </div>
-        <div className="border-t border-border bg-white p-3">
+        {chatClosedAt ? <div className="border-t border-border bg-white p-4 text-center text-sm text-muted-foreground">Чат закрыт. Отправка сообщений недоступна.</div> :         <div className="border-t border-border bg-white p-3">
           <div className="flex items-end gap-2">
             <textarea className="min-h-11 max-h-32 flex-1 resize-y rounded-xl border border-border px-3 py-2" value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Сообщение..." />
             <Button onClick={() => void sendAdminReply()} isLoading={isSending} disabled={!adminReply.trim()}>Отправить</Button>
           </div>
-        </div>
+        </div>}
       </div>
     </div> : null}
   </div>

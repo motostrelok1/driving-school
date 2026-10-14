@@ -97,6 +97,19 @@ export function StudentMessagesPage() {
     refetchOnWindowFocus: true,
   })
 
+  const { data: closedAt } = useQuery({
+    queryKey: ['thread-closed-at', activeThread?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('message_threads')
+        .select('closed_at').eq('id', activeThread!.id).single()
+      if (error) throw error
+      return data.closed_at as string | null
+    },
+    enabled: !!activeThread,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
+
   const markOpened = useMutation({
     mutationFn: async (messageId: string) => {
       const { error } = await supabase.rpc('mark_message_opened', { target_message_id: messageId })
@@ -169,7 +182,7 @@ export function StudentMessagesPage() {
 
   async function handleReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!activeThread?.id || !replyBody.trim() || isReplying) return
+    if (!activeThread?.id || !replyBody.trim() || isReplying || closedAt) return
 
     setReplyError(null)
     setIsReplying(true)
@@ -249,7 +262,7 @@ export function StudentMessagesPage() {
         <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <h2 className="truncate font-semibold text-primary">{activeThread.subject}</h2>
-            <p className="text-xs text-muted-foreground">Переписка с автошколой</p>
+            <p className="text-xs text-muted-foreground">{closedAt ? 'Чат закрыт — только история' : 'Переписка с автошколой'}</p>
           </div>
           <button onClick={() => setActiveThread(null)} aria-label="Закрыть"><X className="h-5 w-5" /></button>
         </div>
@@ -270,7 +283,7 @@ export function StudentMessagesPage() {
           <div ref={conversationEndRef} />
         </div>
 
-        <form onSubmit={handleReply} className="border-t border-border bg-white p-3">
+        {closedAt ? <div className="border-t border-border p-4 text-center text-sm text-muted-foreground">Чат закрыт. Новые сообщения недоступны.</div> : <form onSubmit={handleReply} className="border-t border-border bg-white p-3">
           {replyError ? <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{replyError}</p> : null}
           <div className="flex items-end gap-2">
             <textarea
@@ -282,7 +295,7 @@ export function StudentMessagesPage() {
             />
             <Button type="submit" isLoading={isReplying} disabled={!replyBody.trim()}>Отправить</Button>
           </div>
-        </form>
+        </form>}
       </div>
     </div> : null}
   </div>
