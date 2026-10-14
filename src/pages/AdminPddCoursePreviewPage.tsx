@@ -105,6 +105,7 @@ export function AdminPddCoursePreviewPage() {
   const [draftSaving, setDraftSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [publishBusy, setPublishBusy] = useState(false)
+  const [publishedPreview, setPublishedPreview] = useState<Block[] | null>(null)
   const [publishedVersions, setPublishedVersions] = useState<Array<{ id: number; created_at: string }>>([])
   const [revisions, setRevisions] = useState<Array<{ id: number; saved_at: string; change_kind: string }>>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -132,6 +133,7 @@ export function AdminPddCoursePreviewPage() {
     setDraftLoading(true)
     setDraftStatus('')
     setDirty(false)
+    setPublishedPreview(null)
     void (async () => {
       const { data, error: loadError } = await supabase.from('pdd_course_drafts')
         .select('blocks').eq('section_id', sectionId).maybeSingle()
@@ -193,13 +195,25 @@ export function AdminPddCoursePreviewPage() {
     else setPublishedVersions(data ?? [])
   }
 
+  async function previewPublishedRevision(id: number) {
+    const { data, error: previewError } = await supabase.from('pdd_course_published_revisions')
+      .select('blocks').eq('section_id', sectionId).eq('id', id).single()
+    if (previewError || !data || !Array.isArray(data.blocks)) {
+      setDraftStatus('Ошибка просмотра публикации: ' + (previewError?.message ?? 'некорректные блоки'))
+      return
+    }
+    setPublishedPreview(data.blocks as Block[])
+    setEditing(false)
+    setDraftStatus('Показана опубликованная версия #' + id + '. Черновик не изменён.')
+  }
+
   async function publishDraft() {
     if (dirty) { setDraftStatus('Сначала сохраните изменения в Supabase'); return }
     if (!window.confirm('Опубликовать сохранённый черновик в закрытом хранилище? Ученики пока не увидят эту версию.')) return
     setPublishBusy(true)
     const { error: publishError } = await supabase.rpc('publish_pdd_course_section', { p_section_id: sectionId })
     setDraftStatus(publishError ? 'Ошибка публикации: ' + publishError.message : 'Версия опубликована в закрытом хранилище. Курс ученикам не переключён.')
-    if (!publishError) void loadPublishedVersions()
+    if (!publishError) { void loadPublishedVersions(); setPublishedPreview(null) }
     setPublishBusy(false)
   }
 
@@ -210,7 +224,7 @@ export function AdminPddCoursePreviewPage() {
       p_section_id: sectionId, p_revision_id: id
     })
     setDraftStatus(rollbackError ? 'Ошибка отката: ' + rollbackError.message : 'Опубликованная версия восстановлена. Черновик не менялся.')
-    if (!rollbackError) void loadPublishedVersions()
+    if (!rollbackError) { void loadPublishedVersions(); void previewPublishedRevision(id) }
     setPublishBusy(false)
   }
 
@@ -318,16 +332,20 @@ export function AdminPddCoursePreviewPage() {
             onClick={() => void publishDraft()}>Опубликовать сохранённый черновик</button>
           {publishedVersions.map(version => <div key={version.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
             <span>Публикация #{version.id} — {new Date(version.created_at).toLocaleString('ru-RU')}</span>
-            <button type="button" className="rounded border px-3 py-1" disabled={publishBusy}
-              onClick={() => void rollbackPublished(version.id)}>Вернуть эту версию</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="rounded border px-3 py-1" onClick={() => void previewPublishedRevision(version.id)}>Посмотреть</button>
+              <button type="button" className="rounded border px-3 py-1" disabled={publishBusy}
+                onClick={() => void rollbackPublished(version.id)}>Вернуть эту версию</button>
+            </div>
           </div>)}
         </div>
       </details>}
+      {publishedPreview && <div className="flex flex-wrap items-center gap-3 rounded border border-sky-300 bg-sky-50 p-3 text-sm"><strong>Просмотр опубликованной версии (не черновик)</strong><button type="button" className="rounded border bg-white px-3 py-1" onClick={() => setPublishedPreview(null)}>Вернуться к черновику</button></div>}
       {draftLoading && <p role="status">Загрузка черновика...</p>}
       {section && !draftLoading && <Card key={section.id}>
         <CardHeader><CardTitle>{section.title}</CardTitle></CardHeader>
         <CardContent className="space-y-5">
-          {section.blocks.map((block, index) => <PreviewBlock key={index} block={block} />)}
+          {(publishedPreview ?? section.blocks).map((block, index) => <PreviewBlock key={index} block={block} />)}
         </CardContent>
       </Card>}
     </>}
