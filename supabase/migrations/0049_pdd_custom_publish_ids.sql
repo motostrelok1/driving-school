@@ -1,6 +1,6 @@
 -- 0049: allow publishing custom course chapters using the existing safe RPC.
 -- Replace the previous section identifier validation, keep all other checks unchanged.
-DO $$
+DO $migration$
 DECLARE
   definition text;
 BEGIN
@@ -16,5 +16,5 @@ BEGIN
   END IF;
   EXECUTE definition;
 END;
-$$;
+$migration$;
 -- All other permissions and published data remain unchanged.
