@@ -70,11 +70,14 @@ export function PddSectionCatalog({ entries, onChange }: {
         <button type="button" disabled={busy || !newTitle.trim()} className="rounded bg-sky-700 px-3 py-2 text-sm text-white"
           onClick={() => void addSection()}>+ Добавить раздел</button>
       </div>
-      {entries.map(item => <div key={item.section_id} className="flex flex-wrap items-center gap-2 border-b py-2">
-        <span className="w-14 text-xs text-muted-foreground">{item.section_id}</span>
-        <input className="min-w-40 flex-1 rounded border p-2 text-sm" aria-label={'Название ' + item.section_id}
+      {entries.map(item => <div key={item.section_id} className="grid min-w-0 gap-2 border-b py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0 space-y-1">
+          <span className="block truncate text-xs text-muted-foreground" title={item.section_id}>{item.section_id}</span>
+          <input className="block w-full min-w-0 rounded border p-2 text-sm" aria-label={'Название ' + item.section_id}
           value={titles[item.section_id] ?? item.title}
           onChange={event => setTitles(prev => ({ ...prev, [item.section_id]: event.target.value }))}/>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={busy || !titles[item.section_id]?.trim()}
           className="rounded border px-2 py-1 text-sm"
           onClick={() => void changeEntry(item.section_id, { title: titles[item.section_id] })}>Сохранить название</button>
@@ -90,6 +93,7 @@ export function PddSectionCatalog({ entries, onChange }: {
               void changeEntry(item.section_id, { is_archived: !item.is_archived })
             }
           }}>{item.is_archived ? 'Восстановить' : 'В архив'}</button>
+        </div>
       </div>)}
       {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
       <p className="text-sm text-muted-foreground">Новые разделы начинают с пустого черновика. Публикация новых разделов будет включена отдельным этапом.</p>
