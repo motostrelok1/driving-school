@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+function describeError(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const value = error as { message?: unknown; details?: unknown; code?: unknown }
+    const parts = [value.message, value.details, value.code].filter(
+      (part): part is string => typeof part === 'string' && part.length > 0)
+    if (parts.length > 0) return parts.join(' — ')
+  }
+  return error instanceof Error ? error.message : 'Неизвестная ошибка запроса'
+}
+
 type Publication = { section_id: string; revision_id: number | null }
 type Revision = { id: number; section_id: string; blocks: unknown }
 type AuditResult = { checked: number; total: number; issues: string[]; blocks: number; questions: number; images: number }
@@ -52,6 +62,7 @@ export function PddPublishedAudit() {
   const [publishing, setPublishing] = useState(false)
   const [publishStatus, setPublishStatus] = useState('')
   const [result, setResult] = useState<AuditResult | null>(null)
+  const [auditError, setAuditError] = useState('')
 
   async function prepareMissing() {
     setPreview(null)
@@ -63,7 +74,7 @@ export function PddPublishedAudit() {
       const existing = new Set((data ?? []).map(row => row.section_id))
       setPreview([...EXPECTED].filter(id => !existing.has(id)))
     } catch (error) {
-      setPublishStatus('Ошибка проверки: ' + (error instanceof Error ? error.message : String(error)))
+      setPublishStatus('Ошибка проверки: ' + describeError(error))
     } finally { setBusy(false) }
   }
 
@@ -84,13 +95,14 @@ export function PddPublishedAudit() {
       setPublishStatus('Добавлено публикаций: ' + data + '. Выполните проверку 30 публикаций.')
       void runAudit()
     } catch (error) {
-      setPublishStatus('Ошибка первоначальной публикации: ' + (error instanceof Error ? error.message : String(error)))
+      setPublishStatus('Ошибка первоначальной публикации: ' + describeError(error))
     } finally { setPublishing(false) }
   }
 
   async function runAudit() {
     setBusy(true)
     setResult(null)
+    setAuditError('')
     setPreview(null)
     try {
       const { data: pointers, error: pointerError } = await supabase.from('pdd_course_publications')
@@ -124,9 +136,7 @@ export function PddPublishedAudit() {
       }
       setResult(metrics)
     } catch (error) {
-      setResult({ checked: 0, total: EXPECTED.size, issues: [
-        'Ошибка чтения Supabase: ' + (error instanceof Error ? error.message : String(error))
-      ], blocks: 0, questions: 0, images: 0 })
+      setAuditError('Не удалось выполнить проверку Supabase: ' + describeError(error))
     } finally {
       setBusy(false)
     }
@@ -152,6 +162,7 @@ export function PddPublishedAudit() {
       </div>}
       {publishStatus && <p role="status" className="text-sm">{publishStatus}</p>}
     </div>
+    {auditError && <p role="alert" className="text-sm text-red-700">{auditError}. Повторите проверку после восстановления соединения.</p>}
     {result && <div role="status" className="space-y-2 text-sm">
       <p><strong>{result.issues.length ? 'Есть проблемы' : 'Структура публикаций проверена'}</strong> — {result.checked}/{result.total} разделов; {result.blocks} блоков; {result.questions} вопросов; {result.images} изображений.</p>
       {result.issues.length > 0 && <ul className="list-disc space-y-1 pl-5 text-red-700">
