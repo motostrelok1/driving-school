@@ -283,7 +283,7 @@ export function AdminPddCoursePreviewPage() {
           <button type="button" className="rounded bg-sky-700 px-3 py-2 text-sm text-white" onClick={() => void saveDraft()} disabled={draftSaving || draftLoading}>Сохранить в Supabase</button>
           <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => void resetDraft()} disabled={draftSaving || draftLoading}>Удалить черновик</button>
         </>}
-        {editing && <span role="status" className="text-sm text-muted-foreground">{draftStatus}</span>}
+        <span role="status" className="text-sm text-muted-foreground">{draftStatus}</span>
         {!editing && dirty && <span className="text-sm text-amber-700">Есть несохранённые изменения в черновике</span>}
       </div>}
       {editing && <div id="pdd-course-draft-editor">
