@@ -305,7 +305,7 @@ export function AdminPddCoursePreviewPage() {
           onClick={() => {
             if (!historyOpen) { void loadHistory(); void loadPublishedVersions() }
             setHistoryOpen(value => !value)
-          }}>История изменений</button>
+          }}>{historyOpen ? "Скрыть историю" : "История изменений"}</button>
         <span role="status" className="text-sm text-muted-foreground">{draftStatus}</span>
         {dirty && <span className="text-sm text-amber-700">Есть несохранённые изменения</span>}
       </div>}
@@ -318,7 +318,10 @@ export function AdminPddCoursePreviewPage() {
           }} />}
       </div>}
       {section && historyOpen && <section id="pdd-course-history" className="rounded-lg border p-3 space-y-3">
-        <h2 className="font-semibold">История изменений</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-semibold">История изменений</h2>
+          <button type="button" className="rounded border px-3 py-1 text-sm" onClick={() => setHistoryOpen(false)}>Закрыть</button>
+        </div>
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Тип истории">
           <button type="button" role="tab" aria-selected={historyTab === 'drafts'}
             className={`rounded px-3 py-2 text-sm ${historyTab === 'drafts' ? 'bg-sky-100 font-semibold' : 'border'}`}
