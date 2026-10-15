@@ -265,7 +265,6 @@ function MyDrivingBookingsCard({
             slots.map((slot) => {
               const startDate = new Date(slot.start_at)
               const endDate = new Date(startDate.getTime() + slot.duration_minutes * 60 * 1000)
-              const canCancel = startDate.getTime() > Date.now() + 24 * 60 * 60 * 1000
 
               return (
                 <button
@@ -286,7 +285,6 @@ function MyDrivingBookingsCard({
                   <p className="mt-2 text-sm font-medium text-secondary">
                     {slot.instructor?.full_name || 'Инструктор'}
                   </p>
-                  {!canCancel && <p className="mt-2 text-xs text-amber-800">Самостоятельная отмена недоступна менее чем за 24 часа до начала. По болезни обратитесь к администратору со справкой.</p>}
                 </button>
               )
             })
