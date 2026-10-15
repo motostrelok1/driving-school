@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { DrivingSlot } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { useDrivingSettings, DEFAULT_DRIVING_SETTINGS } from '@/features/schedule/useDrivingSettings'
-import { useDrivingSettings, DEFAULT_DRIVING_SETTINGS } from '@/features/schedule/useDrivingSettings'
 
 const dayStartHour = 6
 const dayEndHour = 24
@@ -57,7 +56,7 @@ export function AdminSchedulePage() {
 
   useEffect(() => {
     if (durationOptions.length && !durationOptions.some(option => option.value === form.duration)) setForm(old => ({...old,duration:durationOptions[0].value}))
-  }, [drivingSettings, form.duration])
+  }, [drivingSettings, form.duration, durationOptions.length])
 
   const { data: drivingSlots, isLoading: drivingSlotsLoading } = useAdminDrivingSlots(form.selectedDate)
   const createDrivingSlot = useCreateDrivingSlot()
