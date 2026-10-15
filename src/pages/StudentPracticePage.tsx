@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { StudentDrivingHistory } from '@/features/schedule/StudentDrivingHistory'
 import { addDays, format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { Button } from '@/components/ui/Button'
@@ -677,6 +678,7 @@ export function StudentPracticePage() {
           {myBookingsSection}
         </>
       )}
+      <StudentDrivingHistory />
       {isChangeWarningOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
           <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-lg sm:p-5">
