@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen, Car, ChevronDown, Info, UserRound } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent } from '@/components/ui/Card'
 import { useAuth } from '@/hooks/useAuth'
 import { useDrivingSlots } from '@/features/schedule/useLessons'
 import { usePublishedPdd, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
