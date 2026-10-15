@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { AdminStudentCourseSelect } from '@/features/admin/AdminStudentCourseSelect'
+import { AdminStudentCourseSelect, StudentCourseBadge } from '@/features/admin/AdminStudentCourseSelect'
 import { AdminTheoryAssessmentModal } from '@/features/theory/AdminTheoryAssessmentModal'
 import type { Profile, UserRole } from '@/types'
 import {
@@ -93,6 +93,7 @@ export function AdminUsersPage() {
   const [filterBy, setFilterBy] = useState<UserFilterField>('role')
   const [roleFilter, setRoleFilter] = useState<RoleFilterValue>('all')
   const [editing, setEditing] = useState<string | null>(null)
+  const [courseStudentId, setCourseStudentId] = useState<string | null>(null)
   const [selectedRole, setSelectedRole] = useState<UserRole>('student')
   const [selectedInstructor, setSelectedInstructor] = useState('')
   const [userToDelete, setUserToDelete] = useState<Profile | null>(null)
@@ -895,7 +896,6 @@ export function AdminUsersPage() {
 
                   {isExpanded ? (
                     <div className="border-t border-border p-3">
-                      {user.role === 'student' && <AdminStudentCourseSelect studentId={user.id} />}
                       <div className="mb-3 min-w-0">
                         <p className="break-all text-sm text-muted-foreground">
                           {user.email || 'Email не указан'}
@@ -1013,6 +1013,7 @@ export function AdminUsersPage() {
                               >
                                 <CircleGauge className="h-4 w-4" />
                               </Button>
+                              <StudentCourseBadge studentId={user.id} onClick={() => setCourseStudentId(user.id)} />
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1290,6 +1291,7 @@ export function AdminUsersPage() {
         </div>
       ) : null}
 
+      {courseStudentId && <AdminStudentCourseSelect studentId={courseStudentId} onClose={() => setCourseStudentId(null)} />}
       {userToAssessment ? (
         <AdminTheoryAssessmentModal key={userToAssessment.id} student={userToAssessment} onClose={() => setUserToAssessment(null)} />
       ) : null}
