@@ -18,7 +18,7 @@ export function SchedulePage() {
   const [duration, setDuration] = useState(60)
   const {data: drivingSettings}=useDrivingSettings()
   const durationOptions=(drivingSettings??DEFAULT_DRIVING_SETTINGS).duration_options
-  useEffect(()=>{if(durationOptions.length&&!durationOptions.some(x=>x.minutes===duration))setDuration(durationOptions[0].minutes)},[drivingSettings,duration])
+  useEffect(()=>{const opts=(drivingSettings??DEFAULT_DRIVING_SETTINGS).duration_options;if(opts.length&&!opts.some(x=>x.minutes===duration))setDuration(opts[0].minutes)},[drivingSettings,duration])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
