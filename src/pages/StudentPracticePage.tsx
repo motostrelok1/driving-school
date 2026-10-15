@@ -39,7 +39,7 @@ function RatingStars({ rating }: { rating: number }) {
 
 const dayStartHour = 6
 const dayEndHour = 24
-const hourHeight = 56
+const hourHeight = 20
 const hourLabels = Array.from(
   { length: dayEndHour - dayStartHour + 1 },
   (_, index) => dayStartHour + index
@@ -188,16 +188,16 @@ function FreeDrivingSlotsCard({
                           const isBooked = slot.status === 'booked'
                           return (
                             <button key={slot.id} type="button"
-                              className={`absolute left-0.5 right-0.5 overflow-hidden rounded border px-0.5 py-1 text-left text-[10px] font-medium shadow-sm disabled:cursor-default ${isBooked
+                              className={`absolute left-0.5 right-0.5 overflow-hidden rounded border px-0.5 py-0 text-left text-[9px] leading-tight font-medium shadow-sm disabled:cursor-default ${isBooked
                                 ? 'border-red-400 bg-red-100 text-red-900'
                                 : 'border-emerald-400 bg-emerald-100 text-emerald-900 hover:bg-emerald-200'}`}
-                              style={{ top: top + 3, height: Math.max(height - 6, 24) }}
+                              style={{ top: top + 1, height: Math.max(height - 2, 12) }}
                               disabled={isBooking || isBooked}
                               onClick={() => { if (!isBooked) onBook(slot) }}
                               title={`${format(start, 'HH:mm')}–${format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')} · ${isBooked ? 'Вы записаны' : 'Записаться'}`}
                             >
-                              <span className="block break-normal leading-tight">{format(start, 'HH:mm')}–{format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')}</span>
-                              <span className="block">{isBooked ? 'Вы записаны' : 'Свободно'}</span>
+                              <span className="block leading-tight">{format(start, 'HH:mm')}{height >= 30 ? `–${format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')}` : ''}</span>
+                              {height >= 30 ? <span className="block leading-tight">{isBooked ? 'Вы записаны' : 'Свободно'}</span> : null}
                             </button>
                           )
                         })}
