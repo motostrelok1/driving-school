@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { LessonList } from '@/features/schedule/LessonList'
 import { useMyLessons, useUpdateLessonStatus } from '@/features/schedule/useLessons'
 import { supabase } from '@/lib/supabase'
+import { useDrivingSettings, DEFAULT_DRIVING_SETTINGS } from '@/features/schedule/useDrivingSettings'
 
 function localDay(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
 
@@ -15,6 +16,9 @@ export function SchedulePage() {
   const [date, setDate] = useState(() => localDay(new Date()))
   const [time, setTime] = useState('09:00')
   const [duration, setDuration] = useState(60)
+  const {data: drivingSettings}=useDrivingSettings()
+  const durationOptions=(drivingSettings??DEFAULT_DRIVING_SETTINGS).duration_options
+  useEffect(()=>{if(durationOptions.length&&!durationOptions.some(x=>x.minutes===duration))setDuration(durationOptions[0].minutes)},[drivingSettings,duration])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -67,7 +71,7 @@ export function SchedulePage() {
       {canManage && <div className="flex flex-wrap items-end gap-2">
         <label className="text-sm">Дата <input type="date" className="block rounded border p-2" value={date} onChange={e => setDate(e.target.value)}/></label>
         <label className="text-sm">Время <input type="time" className="block rounded border p-2" value={time} onChange={e => setTime(e.target.value)}/></label>
-        <label className="text-sm">Длительность <select className="block rounded border p-2" value={duration} onChange={e => setDuration(Number(e.target.value))}><option value={60}>60 минут</option><option value={90}>90 минут</option><option value={120}>120 минут</option></select></label>
+        <label className="text-sm">Длительность <select className="block rounded border p-2" value={duration} onChange={e => setDuration(Number(e.target.value))}>{durationOptions.map(option=><option key={option.minutes} value={option.minutes}>{option.minutes} минут</option>)}</select></label>
         <button className="rounded bg-primary px-4 py-2 text-white disabled:opacity-50" disabled={!date || saving} onClick={() => void createSlot()}>Добавить</button>
       </div>}
       {slots.length === 0 ? <p className="text-sm text-muted-foreground">Будущих интервалов нет.</p> : <div className="space-y-2">{slots.map(slot => <div key={slot.id} className="flex items-center gap-3 rounded border p-3 text-sm">
