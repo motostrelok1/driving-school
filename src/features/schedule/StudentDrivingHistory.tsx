@@ -20,6 +20,7 @@ export function StudentDrivingHistory() {
   }})
   const academicFor=(minutes:number)=>course?.duration_options.find(x=>x.minutes===minutes)?.academic_hours??0
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['student-driving-history'],
     queryFn: async () => {
@@ -42,7 +43,8 @@ export function StudentDrivingHistory() {
   const actualHours=Math.floor(actualMinutes/60)
   const actualRemainder=actualMinutes%60
   return <section className="space-y-3 rounded-xl border bg-white p-4">
-    <h2 className="font-semibold">История проведённых занятий</h2>
+    <button type="button" className="flex w-full items-center justify-between text-left font-semibold" aria-expanded={historyOpen} onClick={() => setHistoryOpen(value => !value)}><span>История проведённых занятий</span><span aria-hidden="true">{historyOpen ? "⌃" : "⌄"}</span></button>
+    {historyOpen && <>
     {courseLoading&&<p className="text-sm text-muted-foreground">Загрузка программы…</p>}
     {courseError&&<p role="alert" className="text-sm text-red-700">Не удалось загрузить программу: {courseError.message}</p>}
     {course ? <div className="grid gap-3 sm:grid-cols-3 text-sm">
@@ -69,5 +71,7 @@ export function StudentDrivingHistory() {
         </div>}
       </div>
     })}
+    </>}
+    <div className="border-t pt-3 text-sm font-medium">{course ? `Откатано по программе: ${completed} из ${course.academic_hours} акад. часов` : `Фактически откатано: ${actualHours} ч ${actualRemainder} мин`}</div>
   </section>
 }
