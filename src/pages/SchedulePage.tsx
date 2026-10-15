@@ -3,6 +3,8 @@ import { LessonList } from '@/features/schedule/LessonList'
 import { useMyLessons, useUpdateLessonStatus } from '@/features/schedule/useLessons'
 import { supabase } from '@/lib/supabase'
 
+function localDay(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
+
 type Slot = { id: string; start_at: string; duration_minutes: number; status: string; student_id: string | null }
 
 export function SchedulePage() {
@@ -10,11 +12,14 @@ export function SchedulePage() {
   const updateStatus = useUpdateLessonStatus()
   const [canManage, setCanManage] = useState(false)
   const [slots, setSlots] = useState<Slot[]>([])
-  const [date, setDate] = useState('')
+  const [date, setDate] = useState(() => localDay(new Date()))
   const [time, setTime] = useState('09:00')
   const [duration, setDuration] = useState(60)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const today = localDay(new Date())
+  const todaysSlots = slots.filter(slot => localDay(new Date(slot.start_at)) === today)
 
   async function refresh() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -25,7 +30,7 @@ export function SchedulePage() {
     setCanManage(permissions?.can_manage === true)
     const { data: ownSlots, error: slotsError } = await supabase.from('driving_slots')
       .select('id,start_at,duration_minutes,status,student_id').eq('instructor_id', user.id)
-      .gte('start_at', new Date().toISOString()).order('start_at')
+      .gte('start_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()).order('start_at')
     if (slotsError) setError(slotsError.message)
     else setSlots(ownSlots ?? [])
   }
@@ -69,6 +74,37 @@ export function SchedulePage() {
         <span className="flex-1">{new Date(slot.start_at).toLocaleString('ru-RU')} · {slot.duration_minutes} мин · {slot.status === 'open' ? 'Свободно' : 'Занято'}</span>
         {canManage && slot.status === 'open' && !slot.student_id && <button className="text-red-700" disabled={saving} onClick={() => void removeSlot(slot.id)}>Удалить</button>}
       </div>)}</div>}
+    </section>
+    <section className="space-y-3 rounded-xl border bg-white p-4">
+      <h2 className="font-semibold">Сетка расписания на сегодня — {new Date().toLocaleDateString('ru-RU')}</h2>
+      <p className="text-sm text-muted-foreground">Синим отмечено свободное время, серым — забронированное. Прошедшие часы остаются видимыми.</p>
+      <div className="max-h-[650px] overflow-auto rounded-lg border">
+        <div className="relative min-w-[300px]" style={{ height: 18 * 56 }}>
+          {Array.from({ length: 19 }, (_, i) => i + 6).map(hour => (
+            <div key={hour} className="absolute flex w-full border-t border-slate-200 text-xs text-muted-foreground" style={{ top: (hour - 6) * 56 }}>
+              <span className="w-16 shrink-0 bg-slate-50 px-2 py-1">{String(hour).padStart(2, '0')}:00</span>
+              <span className="flex-1 border-l border-slate-200" />
+            </div>
+          ))}
+          {todaysSlots.map(slot => {
+            const starts = new Date(slot.start_at)
+            const startMinute = starts.getHours() * 60 + starts.getMinutes()
+            const unclampedTop = (startMinute - 360) * 56 / 60
+            const bottom = Math.min(18 * 56, unclampedTop + slot.duration_minutes * 56 / 60)
+            const top = Math.max(0, unclampedTop)
+            if (bottom <= top) return null
+            const isFree = slot.status === 'open' && slot.student_id === null
+            return (
+              <div key={slot.id} className={`absolute left-16 right-2 overflow-hidden rounded-md border px-3 py-1 text-sm ${isFree ? 'border-blue-300 bg-blue-100 text-blue-900' : 'border-slate-300 bg-slate-200 text-slate-800'}`}
+                style={{ top, height: Math.max(0, bottom - top - 2) }}>
+                <strong>{starts.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}–{new Date(starts.getTime() + slot.duration_minutes * 60000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</strong>
+                <span className="ml-2">{isFree ? 'Свободно' : slot.status === 'cancelled' ? 'Отменено' : 'Занято'}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {todaysSlots.length === 0 && <p className="text-sm text-muted-foreground">На сегодня интервалов нет.</p>}
     </section>
     <LessonList lessons={lessons ?? []} title="Ближайшие занятия" showActions onStatusChange={(id, status) => updateStatus.mutate(id, status)} />
   </div>
