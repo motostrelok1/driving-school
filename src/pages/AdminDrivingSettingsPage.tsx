@@ -1,44 +1,70 @@
-import { useState, useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { useDrivingSettings, DEFAULT_DRIVING_SETTINGS, type DrivingOption } from '@/features/schedule/useDrivingSettings'
 
-export function AdminDrivingSettingsPage() {
- const {data,isLoading,error} = useDrivingSettings()
- const queryClient=useQueryClient()
- const [hours,setHours]=useState(56)
- const [credits,setCredits]=useState(18)
- const [options,setOptions]=useState<DrivingOption[]>(DEFAULT_DRIVING_SETTINGS.duration_options)
+type Option = { minutes:number; academic_hours:number; kind:'trial'|'standard' }
+type Category = { id:string; name:string; academic_hours:number; duration_options:Option[]; is_default:boolean; position:number }
+const defaults:Option[]=[{minutes:60,academic_hours:0,kind:'trial'},{minutes:90,academic_hours:2,kind:'standard'},{minutes:120,academic_hours:3,kind:'standard'}]
+export function AdminDrivingSettingsPage(){
+ const qc=useQueryClient()
+ const {data:categories=[],error,isLoading}=useQuery({queryKey:['driving-categories'],queryFn:async()=>{
+  const {data,error}=await supabase.from('driving_course_categories').select('id,name,academic_hours,duration_options,is_default,position').order('position')
+  if(error)throw error
+  return data as Category[]
+ }})
+ const [active,setActive]=useState('')
+ const [name,setName]=useState('')
+ const [hours,setHours]=useState(0)
+ const [options,setOptions]=useState<Option[]>(defaults)
  const [saving,setSaving]=useState(false)
  const [message,setMessage]=useState('')
- useEffect(()=>{if(data){setHours(data.required_academic_hours);setCredits(data.required_credits);setOptions(data.duration_options)}},[data])
+ const selected=categories.find(c=>c.id===active)
+ useEffect(()=>{if(!active&&categories.length)setActive(categories[0].id)},[categories,active])
+ useEffect(()=>{if(selected){setName(selected.name);setHours(selected.academic_hours);setOptions(selected.duration_options);setMessage('')}else if(active==='new'){setName('');setHours(0);setOptions(defaults.map(x=>({...x})));setMessage('')}},[active,selected])
  async function save(){
   setSaving(true);setMessage('')
-  const {error:saveError}=await supabase.rpc('set_driving_training_settings',{target_hours:hours,target_credits:credits,target_options:options})
+  const {data,error}=await supabase.rpc('save_driving_course_category',{target_id:active==='new'?null:active,target_name:name,target_hours:hours,target_options:options})
   setSaving(false)
-  if(saveError){setMessage(saveError.message);return}
-  await queryClient.invalidateQueries({queryKey:['driving-training-settings']})
-  setMessage('Настройки сохранены')
+  if(error){setMessage(error.message);return}
+  await qc.invalidateQueries({queryKey:['driving-categories']})
+  setActive(data as string);setMessage('Сохранено')
  }
- return <div className="space-y-6">
+ async function remove(){
+  if(!selected||selected.is_default||!window.confirm('Удалить категорию?'))return
+  setSaving(true)
+  const {error}=await supabase.rpc('delete_driving_course_category',{target_id:selected.id})
+  setSaving(false)
+  if(error){setMessage(error.message);return}
+  setActive('');await qc.invalidateQueries({queryKey:['driving-categories']})
+ }
+ return <div className="space-y-5">
   <h1 className="text-2xl font-bold">Настройки автошколы</h1>
-  <section className="space-y-4 rounded-xl border bg-white p-4">
-   <h2 className="font-semibold">Программа вождения и длительность занятия</h2>
-   {isLoading && <p>Загрузка…</p>}
-   {error && <p role="alert" className="text-red-700">Не удалось прочитать настройки: {error.message}. Сначала требуется SQL 0058.</p>}
-   <div className="grid gap-4 sm:grid-cols-2">
-    <label className="text-sm">Норма учебных часов<input className="mt-1 block w-full rounded border p-2" type="number" min="1" max="500" value={hours} onChange={e=>setHours(Number(e.target.value))}/></label>
-    <label className="text-sm">Норма зачётных занятий<input className="mt-1 block w-full rounded border p-2" type="number" min="1" max="500" value={credits} onChange={e=>setCredits(Number(e.target.value))}/></label>
+  <p className="text-sm text-muted-foreground">Категории обучения. Пока они не назначены курсантам, расчёт действующей истории продолжает использовать прежние глобальные настройки.</p>
+  {isLoading&&<p>Загрузка…</p>}
+  {error&&<p role="alert" className="text-red-700">Не удалось загрузить категории. Проверьте SQL 0059: {error.message}</p>}
+  <div className="flex flex-wrap gap-2">
+   {categories.map(c=><button key={c.id} type="button" onClick={()=>setActive(c.id)} className={`rounded-lg border px-4 py-2 text-sm ${active===c.id?'border-primary bg-primary text-white':'bg-white'}`}>{c.name}</button>)}
+   <button type="button" className={`rounded-lg border px-4 py-2 text-sm ${active==='new'?'bg-primary text-white':'bg-white'}`} onClick={()=>setActive('new')}>+ Добавить</button>
+  </div>
+  {(selected||active==='new')&&<section className="space-y-4 rounded-xl border bg-white p-4">
+   <h2 className="font-semibold">{active==='new'?'Новая категория':selected?.name}</h2>
+   <div className="grid gap-3 sm:grid-cols-2">
+    <label className="text-sm">Название категории<input className="mt-1 block w-full rounded border p-2" value={name} onChange={e=>setName(e.target.value)} maxLength={60}/></label>
+    <label className="text-sm">Норма академических часов<input className="mt-1 block w-full rounded border p-2" type="number" min={0} max={500} value={hours} onChange={e=>setHours(Number(e.target.value))}/></label>
    </div>
-   <p className="text-sm text-muted-foreground">Доступные длительности появляются в расписании у администратора и инструктора. Зачётные единицы нужны для расчёта прогресса. Изменение таблицы пересчитывает уже проведённые занятия.</p>
-   {options.map((option,index)=><div key={index} className="flex flex-wrap items-end gap-3 rounded border p-3">
-    <label className="text-sm">Минут<input className="mt-1 block w-28 rounded border p-2" type="number" min="15" max="240" step="15" value={option.minutes} onChange={e=>setOptions(old=>old.map((x,i)=>i===index?{...x,minutes:Number(e.target.value)}:x))}/></label>
-    <label className="text-sm">Зачётных единиц<input className="mt-1 block w-32 rounded border p-2" type="number" min="1" max="20" value={option.credits} onChange={e=>setOptions(old=>old.map((x,i)=>i===index?{...x,credits:Number(e.target.value)}:x))}/></label>
-    <button type="button" className="rounded border px-3 py-2 text-sm" disabled={options.length<=1} onClick={()=>setOptions(old=>old.filter((_,i)=>i!==index))}>Удалить</button>
+   <h3 className="font-semibold">Варианты занятий</h3>
+   {options.map((o,i)=><div key={i} className="flex flex-wrap items-end gap-2 rounded border p-3">
+    <label className="text-sm">Минут<input className="mt-1 block w-24 rounded border p-2" type="number" min={15} max={240} step={15} value={o.minutes} onChange={e=>setOptions(xs=>xs.map((x,j)=>j===i?{...x,minutes:Number(e.target.value)}:x))}/></label>
+    <label className="text-sm">Тип<select className="mt-1 block rounded border p-2" value={o.kind} onChange={e=>setOptions(xs=>xs.map((x,j)=>j===i?{...x,kind:e.target.value as Option['kind'],academic_hours:e.target.value==='trial'?0:x.academic_hours}:x))}><option value="standard">Обычное</option><option value="trial">Пробное / подарочное</option></select></label>
+    <label className="text-sm">Зачёт акад. часов<input className="mt-1 block w-28 rounded border p-2" type="number" min={0} max={10} disabled={o.kind==='trial'} value={o.academic_hours} onChange={e=>setOptions(xs=>xs.map((x,j)=>j===i?{...x,academic_hours:Number(e.target.value)}:x))}/></label>
+    <button type="button" className="rounded border px-3 py-2 text-sm" disabled={options.length<=1} onClick={()=>setOptions(xs=>xs.filter((_,j)=>j!==i))}>Удалить</button>
    </div>)}
-   <button type="button" className="rounded border px-3 py-2 text-sm" disabled={options.length>=12} onClick={()=>setOptions(old=>[...old,{minutes:150,credits:4}])}>Добавить длительность</button>
-   <div><button type="button" className="rounded bg-primary px-4 py-2 text-white disabled:opacity-50" disabled={saving||isLoading||!!error} onClick={()=>void save()}>{saving?'Сохранение…':'Сохранить настройки'}</button></div>
-   {message && <p role="status" className="text-sm">{message}</p>}
-  </section>
+   <button type="button" className="rounded border px-3 py-2 text-sm" disabled={options.length>=12} onClick={()=>setOptions(xs=>[...xs,{minutes:150,academic_hours:4,kind:'standard'}])}>+ Длительность</button>
+   <div className="flex flex-wrap gap-2">
+    <button className="rounded bg-primary px-4 py-2 text-white" disabled={saving||!!error} onClick={()=>void save()}>{saving?'Сохранение…':'Сохранить'}</button>
+    {selected&&!selected.is_default&&<button className="rounded border border-red-300 px-4 py-2 text-red-700" disabled={saving} onClick={()=>void remove()}>Удалить категорию</button>}
+   </div>
+   {message&&<p role="status" className="text-sm">{message}</p>}
+  </section>}
  </div>
 }
