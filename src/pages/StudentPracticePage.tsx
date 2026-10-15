@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { StudentDrivingHistory } from '@/features/schedule/StudentDrivingHistory'
-import { addDays, format } from 'date-fns'
+import { addDays, format, startOfWeek } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -19,7 +19,7 @@ import {
 } from '@/features/schedule/useLessons'
 import { useAuth } from '@/hooks/useAuth'
 import type { DrivingSlot, LessonWithDetails, Profile } from '@/types'
-import { CalendarDays, Car, ChevronDown, ChevronLeft, ChevronRight, Clock, Mail, MessageSquare, Phone, Star, UserCheck, UserRound } from 'lucide-react'
+import { CalendarDays, Car, ChevronDown, ChevronLeft, ChevronRight, Mail, MessageSquare, Phone, Star, UserCheck, UserRound } from 'lucide-react'
 
 function RatingStars({ rating }: { rating: number }) {
   return (
@@ -61,16 +61,21 @@ function FreeDrivingSlotsCard({
   isBooking: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(toDateInputValue(new Date()))
-  const [weekStartDate, setWeekStartDate] = useState(() => new Date())
+  const [weekStartDate, setWeekStartDate] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStartDate, index)),
     [weekStartDate]
   )
   const freeSlotsCount = slots.filter((slot) => slot.status === 'open' && !slot.student_id).length
-  const selectedDaySlots = slots.filter(
-    (slot) => toDateInputValue(new Date(slot.start_at)) === selectedDate
-  )
+  const weekSlots = useMemo(() => {
+    const start = toDateInputValue(weekDays[0])
+    const end = toDateInputValue(weekDays[6])
+    return slots.filter((slot) => {
+      const day = toDateInputValue(new Date(slot.start_at))
+      return day >= start && day <= end
+    })
+  }, [slots, weekDays])
+  const earliestWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
 
   if (!selectedInstructor) {
     return (
@@ -112,10 +117,9 @@ function FreeDrivingSlotsCard({
                 type="button"
                 className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-border bg-white px-2 text-xs font-medium text-primary hover:bg-muted sm:px-3 sm:text-sm"
                 onClick={() => {
-                  const today = new Date()
                   setWeekStartDate((date) => {
                     const previous = addDays(date, -7)
-                    return previous < today ? today : previous
+                    return previous < earliestWeekStart ? earliestWeekStart : previous
                   })
                 }}
               >
@@ -136,101 +140,69 @@ function FreeDrivingSlotsCard({
               </button>
             </div>
 
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-              {weekDays.map((day) => {
-                const dateValue = toDateInputValue(day)
-                const isSelected = selectedDate === dateValue
-                const daySlotsCount = slots.filter(
-                  (slot) =>
-                    slot.status === 'open' &&
-                    !slot.student_id &&
-                    toDateInputValue(new Date(slot.start_at)) === dateValue
-                ).length
-
-                return (
-                  <button
-                    key={dateValue}
-                    type="button"
-                    className={`min-w-0 rounded-lg border px-1 py-2 text-center transition-colors sm:px-2 ${
-                      isSelected
-                        ? 'border-secondary bg-secondary/10 text-secondary'
-                        : 'border-border bg-white text-primary hover:bg-muted'
-                    }`}
-                    onClick={() => setSelectedDate(dateValue)}
-                  >
-                    <span className="block text-[11px] font-medium capitalize text-muted-foreground sm:text-xs">
-                      {format(day, 'EE', { locale: ru })}
-                    </span>
-                    <span className="mt-0.5 block text-base font-semibold sm:text-lg">
-                      {format(day, 'd')}
-                    </span>
-                    <span className="block text-[11px] font-semibold text-secondary sm:text-xs">
-                      {daySlotsCount}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            <div>
-              <p className="mb-3 flex min-w-0 items-center gap-2 text-sm font-medium text-primary sm:text-base">
-                <Clock className="h-4 w-4" />
-                {format(new Date(`${selectedDate}T00:00:00`), 'd MMMM, EEEE', { locale: ru })}
-              </p>
-              <div className="overflow-x-auto">
-                <div
-                  className="relative mx-auto min-w-0 rounded-lg border border-border bg-white sm:w-[70%]"
-                style={{ height: `${(dayEndHour - dayStartHour) * hourHeight}px` }}
-              >
-                {hourLabels.map((hour) => (
-                  <div
-                    key={hour}
-                    className="absolute left-0 right-0 border-t border-border/70"
-                    style={{ top: `${(hour - dayStartHour) * hourHeight}px` }}
-                  >
-                    <span className="absolute left-2 top-1 text-[11px] font-medium text-muted-foreground sm:left-3 sm:text-xs">
-                      {String(hour).padStart(2, '0')}:00
-                    </span>
-                  </div>
-                ))}
-
-                {selectedDaySlots.map((slot) => {
-                  const startDate = new Date(slot.start_at)
-                  const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
-                  const top = ((startMinutes - dayStartHour * 60) / 60) * hourHeight
-                  const height = (slot.duration_minutes / 60) * hourHeight
-                  const startLabel = format(startDate, 'HH:mm')
-                  const endLabel = format(new Date(startDate.getTime() + slot.duration_minutes * 60 * 1000), 'HH:mm')
-                  const isMyBooking = slot.status === 'booked'
-
-                  return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      className={`absolute left-14 right-2 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-xs font-medium shadow-sm disabled:opacity-80 sm:left-16 sm:right-2 sm:px-3 sm:py-2 sm:text-sm ${
-                        isMyBooking
-                          ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
-                          : 'border-secondary/40 bg-secondary/15 text-secondary hover:bg-secondary/20'
-                      }`}
-                      style={{ top: `${top + 4}px`, height: `${Math.max(height - 8, 40)}px` }}
-                      disabled={isBooking || isMyBooking}
-                      onClick={() => {
-                        if (!isMyBooking) onBook(slot)
-                      }}
-                    >
-                      <span className="block">{startLabel} - {endLabel}</span>
-                      <span className={`text-xs ${isMyBooking ? 'text-emerald-700' : 'text-secondary/80'}`}>
-                        {isMyBooking ? 'Вы записаны' : 'Записаться'}
+            <div className="overflow-x-auto rounded-lg border border-border" aria-label="Недельное расписание вождения">
+              <div className="min-w-[1040px] bg-white">
+                <div className="grid grid-cols-[56px_repeat(7,minmax(140px,1fr))] border-b border-border bg-muted/40">
+                  <div className="border-r border-border p-2 text-xs text-muted-foreground">Время</div>
+                  {weekDays.map((day) => {
+                    const dayValue = toDateInputValue(day)
+                    const available = weekSlots.filter((slot) =>
+                      toDateInputValue(new Date(slot.start_at)) === dayValue &&
+                      slot.status === 'open' && !slot.student_id
+                    ).length
+                    return (
+                      <div key={dayValue} className="border-r border-border px-1 py-2 text-center text-xs text-primary last:border-r-0">
+                        <span className="block capitalize">{format(day, 'EEEEEE', { locale: ru })}</span>
+                        <span className="block text-base font-semibold">{format(day, 'd MMM', { locale: ru })}</span>
+                        <span className="block text-emerald-700">Свободно: {available}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="grid grid-cols-[56px_repeat(7,minmax(140px,1fr))]">
+                  <div className="relative border-r border-border bg-muted/20" style={{ height: (dayEndHour - dayStartHour) * hourHeight }}>
+                    {hourLabels.map((hour) => (
+                      <span key={hour} className="absolute left-1 top-0 text-[11px] text-muted-foreground" style={{ transform: 'translateY(-50%)', top: (hour - dayStartHour) * hourHeight }}>
+                        {String(hour).padStart(2, '0')}:00
                       </span>
-                    </button>
-                  )
-                })}
-
-                {selectedDaySlots.length === 0 ? (
-                  <p className="absolute left-14 right-2 top-4 text-xs text-muted-foreground sm:left-20 sm:text-sm">
-                    Нет свободных слотов на этот день.
-                  </p>
-                ) : null}
+                    ))}
+                  </div>
+                  {weekDays.map((day) => {
+                    const dayValue = toDateInputValue(day)
+                    const daySlots = weekSlots.filter((slot) =>
+                      toDateInputValue(new Date(slot.start_at)) === dayValue
+                    )
+                    return (
+                      <div key={dayValue} className="relative border-r border-border last:border-r-0"
+                        style={{ height: (dayEndHour - dayStartHour) * hourHeight }}>
+                        {hourLabels.map((hour) => (
+                          <div key={hour} className="absolute left-0 right-0 border-t border-border/70"
+                            style={{ top: (hour - dayStartHour) * hourHeight }} />
+                        ))}
+                        {daySlots.map((slot) => {
+                          const start = new Date(slot.start_at)
+                          const startMinutes = start.getHours() * 60 + start.getMinutes()
+                          const top = ((startMinutes - dayStartHour * 60) / 60) * hourHeight
+                          const height = (slot.duration_minutes / 60) * hourHeight
+                          const isBooked = slot.status === 'booked'
+                          return (
+                            <button key={slot.id} type="button"
+                              className={`absolute left-1 right-1 overflow-hidden rounded-md border p-1 text-left text-[11px] font-medium shadow-sm disabled:cursor-default ${isBooked
+                                ? 'border-red-400 bg-red-100 text-red-900'
+                                : 'border-emerald-400 bg-emerald-100 text-emerald-900 hover:bg-emerald-200'}`}
+                              style={{ top: top + 3, height: Math.max(height - 6, 24) }}
+                              disabled={isBooking || isBooked}
+                              onClick={() => { if (!isBooked) onBook(slot) }}
+                              title={`${format(start, 'HH:mm')}–${format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')} · ${isBooked ? 'Вы записаны' : 'Записаться'}`}
+                            >
+                              <span className="block">{format(start, 'HH:mm')}–{format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')}</span>
+                              <span className="block">{isBooked ? 'Вы записаны' : 'Свободно'}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
