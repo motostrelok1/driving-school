@@ -24,7 +24,10 @@ export function AdminStudentCourseSelect({studentId,onClose}:{studentId:string;o
   const {error}=await supabase.rpc('set_student_driving_course',{target_student_id:studentId,target_category_id:selected})
   setSaving(false)
   if(error){setMessage(error.message);return}
-  await qc.invalidateQueries({queryKey:['student-course',studentId]})
+  await Promise.all([
+   qc.invalidateQueries({queryKey:['student-course',studentId]}),
+   qc.invalidateQueries({queryKey:['student-course-badge',studentId]}),
+  ])
   onClose()
  }
  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
