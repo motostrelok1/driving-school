@@ -140,10 +140,11 @@ function FreeDrivingSlotsCard({
               </button>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-border" aria-label="Недельное расписание вождения">
-              <div className="min-w-[1040px] bg-white">
-                <div className="grid grid-cols-[56px_repeat(7,minmax(140px,1fr))] border-b border-border bg-muted/40">
-                  <div className="border-r border-border p-2 text-xs text-muted-foreground">Время</div>
+            <p className="text-xs text-muted-foreground">Листайте таблицу по горизонтали, чтобы увидеть остальные дни.</p>
+            <div className="w-full max-w-full overflow-x-auto overscroll-x-contain rounded-lg border border-border" aria-label="Недельное расписание вождения" tabIndex={0}>
+              <div className="min-w-[788px] bg-white">
+                <div className="grid grid-cols-[60px_repeat(7,minmax(104px,1fr))] border-b border-border bg-muted/40">
+                  <div className="sticky left-0 z-20 border-r border-border bg-muted p-2 text-xs text-muted-foreground">Время</div>
                   {weekDays.map((day) => {
                     const dayValue = toDateInputValue(day)
                     const available = weekSlots.filter((slot) =>
@@ -151,18 +152,18 @@ function FreeDrivingSlotsCard({
                       slot.status === 'open' && !slot.student_id
                     ).length
                     return (
-                      <div key={dayValue} className="border-r border-border px-1 py-2 text-center text-xs text-primary last:border-r-0">
+                      <div key={dayValue} className="min-w-0 border-r border-border px-1 py-3 text-center text-xs text-primary last:border-r-0">
                         <span className="block capitalize">{format(day, 'EEEEEE', { locale: ru })}</span>
                         <span className="block text-base font-semibold">{format(day, 'd MMM', { locale: ru })}</span>
-                        <span className="block text-emerald-700">Свободно: {available}</span>
+                        <span className="block whitespace-nowrap text-[11px] text-emerald-700">{available} свободно</span>
                       </div>
                     )
                   })}
                 </div>
-                <div className="grid grid-cols-[56px_repeat(7,minmax(140px,1fr))]">
-                  <div className="relative border-r border-border bg-muted/20" style={{ height: (dayEndHour - dayStartHour) * hourHeight }}>
+                <div className="grid grid-cols-[60px_repeat(7,minmax(104px,1fr))]">
+                  <div className="sticky left-0 z-10 border-r border-border bg-white" style={{ height: (dayEndHour - dayStartHour) * hourHeight }}>
                     {hourLabels.map((hour) => (
-                      <span key={hour} className="absolute left-1 top-0 text-[11px] text-muted-foreground" style={{ transform: 'translateY(-50%)', top: (hour - dayStartHour) * hourHeight }}>
+                      <span key={hour} className="absolute left-1 text-[11px] text-muted-foreground" style={{ top: (hour - dayStartHour) * hourHeight + 4 }}>
                         {String(hour).padStart(2, '0')}:00
                       </span>
                     ))}
@@ -195,7 +196,7 @@ function FreeDrivingSlotsCard({
                               onClick={() => { if (!isBooked) onBook(slot) }}
                               title={`${format(start, 'HH:mm')}–${format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')} · ${isBooked ? 'Вы записаны' : 'Записаться'}`}
                             >
-                              <span className="block">{format(start, 'HH:mm')}–{format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')}</span>
+                              <span className="block break-normal leading-tight">{format(start, 'HH:mm')}–{format(new Date(start.getTime() + slot.duration_minutes * 60000), 'HH:mm')}</span>
                               <span className="block">{isBooked ? 'Вы записаны' : 'Свободно'}</span>
                             </button>
                           )
