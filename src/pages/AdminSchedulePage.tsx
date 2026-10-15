@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { addDays, format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -73,6 +73,34 @@ export function AdminSchedulePage() {
   const [isBookingSubmitting, setIsBookingSubmitting] = useState(false)
   const bookingSubmitGuard = useRef(false)
   const [notificationWarning, setNotificationWarning] = useState<string | null>(null)
+  const [instructorCanManage, setInstructorCanManage] = useState(false)
+  const [permissionSaving, setPermissionSaving] = useState(false)
+  const [permissionError, setPermissionError] = useState('')
+  useEffect(() => {
+    const id = form.instructorId
+    setInstructorCanManage(false)
+    setPermissionError('')
+    if (!id) return
+    let active = true
+    void (async () => {
+      const { data, error } = await supabase.from('instructor_schedule_permissions').select('can_manage').eq('instructor_id', id).maybeSingle()
+      if (!active) return
+      if (error) setPermissionError(error.message)
+      else setInstructorCanManage(data?.can_manage === true)
+    })()
+    return () => { active = false }
+  }, [form.instructorId])
+  async function changeInstructorPermission(allow: boolean) {
+    if (!form.instructorId || permissionSaving) return
+    setPermissionSaving(true)
+    const { error } = await supabase.rpc('set_instructor_schedule_permission', {
+      target_instructor_id: form.instructorId, allow_manage: allow,
+    })
+    setPermissionSaving(false)
+    if (error) setPermissionError(error.message)
+    else { setPermissionError(''); setInstructorCanManage(allow) }
+  }
+
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStartDate, index)),
@@ -287,6 +315,23 @@ export function AdminSchedulePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-primary">Управление расписанием</h1>
+      <section className="rounded-xl border bg-white p-4 space-y-2">
+        <h2 className="font-semibold">Право инструктора управлять расписанием</h2>
+        <label className="block text-sm">Инструктор
+          <select className="mt-1 block w-full max-w-lg rounded border p-2" value={form.instructorId}
+            onChange={event => setForm(current => ({...current, instructorId: event.target.value}))}>
+            <option value="">Выберите инструктора</option>
+            {instructors.map(person => <option key={person.id} value={person.id}>{person.full_name || person.id}</option>)}
+          </select>
+        </label>
+        {form.instructorId && <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={instructorCanManage} disabled={permissionSaving}
+            onChange={event => void changeInstructorPermission(event.target.checked)}/>
+          Разрешить самостоятельно добавлять и удалять свободное время
+        </label>}
+        {permissionError && <p role="alert" className="text-sm text-red-700">{permissionError}</p>}
+      </section>
+
 
       {notificationWarning ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
