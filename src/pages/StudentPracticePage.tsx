@@ -142,9 +142,9 @@ function FreeDrivingSlotsCard({
 
             <p className="text-xs text-muted-foreground">Листайте таблицу по горизонтали, чтобы увидеть остальные дни.</p>
             <div className="w-full max-w-full overflow-x-auto overscroll-x-contain rounded-lg border border-border" aria-label="Недельное расписание вождения" tabIndex={0}>
-              <div className="min-w-[640px] bg-white">
-                <div className="grid grid-cols-[42px_repeat(7,minmax(85px,1fr))] border-b border-border bg-muted/40">
-                  <div className="sticky left-0 z-20 border-r border-border bg-muted px-0.5 py-1 text-[10px] text-muted-foreground">Час</div>
+              <div className="min-w-[616px] bg-white">
+                <div className="grid grid-cols-[21px_repeat(7,minmax(85px,1fr))] border-b border-border bg-muted/40">
+                  <div className="sticky left-0 z-20 border-r border-border bg-muted px-0 py-1 text-[9px] text-muted-foreground">ч</div>
                   {weekDays.map((day) => {
                     const dayValue = toDateInputValue(day)
                     const available = weekSlots.filter((slot) =>
@@ -160,10 +160,10 @@ function FreeDrivingSlotsCard({
                     )
                   })}
                 </div>
-                <div className="grid grid-cols-[42px_repeat(7,minmax(85px,1fr))]">
+                <div className="grid grid-cols-[21px_repeat(7,minmax(85px,1fr))]">
                   <div className="sticky left-0 z-10 border-r border-border bg-white" style={{ height: (dayEndHour - dayStartHour) * hourHeight }}>
                     {hourLabels.map((hour) => (
-                      <span key={hour} className="absolute left-0.5 text-[10px] text-muted-foreground" style={{ top: (hour - dayStartHour) * hourHeight + 4 }}>
+                      <span key={hour} className="absolute left-0 text-[8px] tracking-tighter text-muted-foreground" style={{ top: (hour - dayStartHour) * hourHeight + 4 }}>
                         {String(hour).padStart(2, '0')}:00
                       </span>
                     ))}
