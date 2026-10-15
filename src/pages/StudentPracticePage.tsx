@@ -286,7 +286,6 @@ function MyDrivingBookingsCard({
                   <p className="mt-2 text-sm font-medium text-secondary">
                     {slot.instructor?.full_name || 'Инструктор'}
                   </p>
-                  {!canCancel && <p className="mt-2 text-xs text-amber-800">Самостоятельная отмена недоступна менее чем за 24 часа до начала. По болезни обратитесь к администратору со справкой.</p>}
                 </button>
               )
             })
