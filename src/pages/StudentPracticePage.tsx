@@ -142,9 +142,9 @@ function FreeDrivingSlotsCard({
 
             <p className="text-xs text-muted-foreground">Листайте таблицу по горизонтали, чтобы увидеть остальные дни.</p>
             <div className="w-full max-w-full overflow-x-auto overscroll-x-contain rounded-lg border border-border" aria-label="Недельное расписание вождения" tabIndex={0}>
-              <div className="min-w-[788px] bg-white">
-                <div className="grid grid-cols-[60px_repeat(7,minmax(104px,1fr))] border-b border-border bg-muted/40">
-                  <div className="sticky left-0 z-20 border-r border-border bg-muted p-2 text-xs text-muted-foreground">Время</div>
+              <div className="min-w-[640px] bg-white">
+                <div className="grid grid-cols-[42px_repeat(7,minmax(85px,1fr))] border-b border-border bg-muted/40">
+                  <div className="sticky left-0 z-20 border-r border-border bg-muted px-0.5 py-1 text-[10px] text-muted-foreground">Час</div>
                   {weekDays.map((day) => {
                     const dayValue = toDateInputValue(day)
                     const available = weekSlots.filter((slot) =>
@@ -152,18 +152,18 @@ function FreeDrivingSlotsCard({
                       slot.status === 'open' && !slot.student_id
                     ).length
                     return (
-                      <div key={dayValue} className="min-w-0 border-r border-border px-1 py-3 text-center text-xs text-primary last:border-r-0">
+                      <div key={dayValue} className="min-w-0 border-r border-border px-0.5 py-1 text-center text-[10px] text-primary last:border-r-0">
                         <span className="block capitalize">{format(day, 'EEEEEE', { locale: ru })}</span>
-                        <span className="block text-base font-semibold">{format(day, 'd MMM', { locale: ru })}</span>
-                        <span className="block whitespace-nowrap text-[11px] text-emerald-700">{available} свободно</span>
+                        <span className="block text-xs font-semibold">{format(day, 'd MMM', { locale: ru })}</span>
+                        <span className="block whitespace-nowrap text-[9px] text-emerald-700">{available} своб.</span>
                       </div>
                     )
                   })}
                 </div>
-                <div className="grid grid-cols-[60px_repeat(7,minmax(104px,1fr))]">
+                <div className="grid grid-cols-[42px_repeat(7,minmax(85px,1fr))]">
                   <div className="sticky left-0 z-10 border-r border-border bg-white" style={{ height: (dayEndHour - dayStartHour) * hourHeight }}>
                     {hourLabels.map((hour) => (
-                      <span key={hour} className="absolute left-1 text-[11px] text-muted-foreground" style={{ top: (hour - dayStartHour) * hourHeight + 4 }}>
+                      <span key={hour} className="absolute left-0.5 text-[10px] text-muted-foreground" style={{ top: (hour - dayStartHour) * hourHeight + 4 }}>
                         {String(hour).padStart(2, '0')}:00
                       </span>
                     ))}
@@ -188,7 +188,7 @@ function FreeDrivingSlotsCard({
                           const isBooked = slot.status === 'booked'
                           return (
                             <button key={slot.id} type="button"
-                              className={`absolute left-1 right-1 overflow-hidden rounded-md border p-1 text-left text-[11px] font-medium shadow-sm disabled:cursor-default ${isBooked
+                              className={`absolute left-0.5 right-0.5 overflow-hidden rounded border px-0.5 py-1 text-left text-[10px] font-medium shadow-sm disabled:cursor-default ${isBooked
                                 ? 'border-red-400 bg-red-100 text-red-900'
                                 : 'border-emerald-400 bg-emerald-100 text-emerald-900 hover:bg-emerald-200'}`}
                               style={{ top: top + 3, height: Math.max(height - 6, 24) }}
