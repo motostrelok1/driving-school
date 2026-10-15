@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom'
 import { BookOpen, Car, ChevronDown, Info, UserRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/hooks/useAuth'
-import { useMyLessons } from '@/features/schedule/useLessons'
+import { useDrivingSlots } from '@/features/schedule/useLessons'
+import { usePublishedPdd, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
+import { supabase } from '@/lib/supabase'
 import { useMyInstructors } from '@/features/instructors/useInstructorStudents'
 
 const TOTAL_COURSE_VIDEOS = 5
-const TOTAL_PDD_TOPICS = 38
-const TOTAL_THEORY_ITEMS = TOTAL_COURSE_VIDEOS + TOTAL_PDD_TOPICS
-const TOTAL_DRIVING_HOURS = 56
 
 function getStoredStringList(key: string) {
   try {
@@ -21,69 +20,93 @@ function getStoredStringList(key: string) {
 
 export function StudentProfilePage() {
   const { profile, user } = useAuth()
-  const { data: lessons } = useMyLessons()
+  const { data: drivingSlots } = useDrivingSlots()
+  const { sections: publishedSections, loading: pddLoading } = usePublishedPdd()
+  const { readIds: readTopicIds, loading: readLoading } = usePddReadProgress()
+  const [course, setCourse] = useState<{ name: string; hours: number; options: { minutes: number; academic_hours: number }[] } | null>(null)
+  const [courseLoading, setCourseLoading] = useState(true)
+  const [isContactsOpen, setIsContactsOpen] = useState(false)
   const { data: instructors } = useMyInstructors()
   const [isInstructorsOpen, setIsInstructorsOpen] = useState(false)
   const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>(() =>
     getStoredStringList('watched-theory-videos')
   )
-  const [readTopicIds, setReadTopicIds] = useState<string[]>(() =>
-    getStoredStringList('read-pdd-topics')
-  )
 
-  const theoryItemsDone = Math.min(
-    watchedVideoIds.length + readTopicIds.length,
-    TOTAL_THEORY_ITEMS
-  )
-  const theoryItemsLeft = Math.max(TOTAL_THEORY_ITEMS - theoryItemsDone, 0)
-  const theoryProgress = Math.round((theoryItemsDone / TOTAL_THEORY_ITEMS) * 100)
+  const totalTheoryItems = TOTAL_COURSE_VIDEOS + publishedSections.length
+  const readPddCount = publishedSections.filter(section => readTopicIds.includes(section.id)).length
+  const theoryItemsDone = Math.min(watchedVideoIds.length, TOTAL_COURSE_VIDEOS) + readPddCount
+  const theoryItemsLeft = Math.max(totalTheoryItems - theoryItemsDone, 0)
+  const theoryProgress = totalTheoryItems ? Math.round(theoryItemsDone / totalTheoryItems * 100) : 0
+  const theoryLoading = pddLoading || readLoading
 
   useEffect(() => {
-    function syncTheoryProgress() {
-      setWatchedVideoIds(getStoredStringList('watched-theory-videos'))
-      setReadTopicIds(getStoredStringList('read-pdd-topics'))
-    }
-
-    window.addEventListener('focus', syncTheoryProgress)
-    window.addEventListener('storage', syncTheoryProgress)
-
-    return () => {
-      window.removeEventListener('focus', syncTheoryProgress)
-      window.removeEventListener('storage', syncTheoryProgress)
-    }
+    const sync = () => setWatchedVideoIds(getStoredStringList('watched-theory-videos'))
+    window.addEventListener('focus', sync)
+    window.addEventListener('storage', sync)
+    return () => { window.removeEventListener('focus', sync); window.removeEventListener('storage', sync) }
   }, [])
 
-  const completedDrivingMinutes =
-    lessons
-      ?.filter(
-        (lesson) => lesson.type === 'practice' && lesson.status === 'completed'
-      )
-      .reduce((total, lesson) => total + lesson.duration_minutes, 0) ?? 0
-  const completedDrivingHours = completedDrivingMinutes / 60
-  const drivingHoursLeft = Math.max(
-    TOTAL_DRIVING_HOURS - completedDrivingHours,
-    0
-  )
+  useEffect(() => {
+    if (!user?.id) { setCourseLoading(false); return }
+    let active = true
+    void (async () => {
+      const { data: assignment } = await supabase.from('student_driving_courses')
+        .select('category_id').eq('student_id', user.id).maybeSingle()
+      if (assignment?.category_id) {
+        const { data } = await supabase.from('driving_course_categories')
+          .select('name,academic_hours,duration_options').eq('id', assignment.category_id).maybeSingle()
+        if (active && data) setCourse({
+          name: data.name, hours: data.academic_hours,
+          options: Array.isArray(data.duration_options) ? data.duration_options as { minutes: number; academic_hours: number }[] : [],
+        })
+      }
+      if (active) setCourseLoading(false)
+    })()
+    return () => { active = false }
+  }, [user?.id])
+
+  const ownSlots = (drivingSlots ?? []).filter(slot => slot.student_id === user?.id && slot.status === 'booked')
+  const now = Date.now()
+  const finishedSlots = ownSlots.filter(slot => new Date(slot.start_at).getTime() + slot.duration_minutes * 60000 <= now)
+  const upcomingSlots = ownSlots.filter(slot => new Date(slot.start_at).getTime() + slot.duration_minutes * 60000 > now)
+  const hoursFor = (items: typeof ownSlots) => items.reduce((sum, slot) => sum + (
+    course ? (course.options.find(option => option.minutes === slot.duration_minutes)?.academic_hours ?? slot.duration_minutes / 60)
+      : slot.duration_minutes / 60
+  ), 0)
+  const bookedHours = hoursFor(upcomingSlots)
+  const [completedHours, setCompletedHours] = useState<number | null>(null)
+  useEffect(() => {
+    if (!user?.id) return
+    let active = true
+    void (async () => {
+      const { data, error } = await supabase.from('driving_slots')
+        .select('start_at,duration_minutes').eq('student_id', user.id).eq('status', 'booked')
+        .lt('start_at', new Date().toISOString())
+      if (active && !error) {
+        const finished = (data ?? []).filter(slot => new Date(slot.start_at).getTime() + slot.duration_minutes * 60000 <= Date.now())
+        setCompletedHours(hoursFor(finished as typeof ownSlots))
+      }
+    })()
+    return () => { active = false }
+  }, [user?.id, course])
+  const drivenHours = completedHours ?? hoursFor(finishedSlots)
+  const remainingHours = course ? Math.max(0, course.hours - drivenHours) : null
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>{profile?.full_name || 'Профиль'}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Email</p>
-            <p className="break-all font-medium text-primary">
-              {profile?.email || user?.email || 'Не указан'}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Телефон</p>
-            <p className="font-medium text-primary">
-              {profile?.phone || 'Не указан'}
-            </p>
-          </div>
+        <CardContent>
+          <button type="button" className="flex w-full items-center justify-between gap-3 text-left"
+            aria-expanded={isContactsOpen} onClick={() => setIsContactsOpen(value => !value)}>
+            <span className="font-semibold text-primary">{profile?.full_name || 'Профиль'}</span>
+            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isContactsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isContactsOpen && <div className="mt-4 space-y-3 border-t pt-3">
+            <div><p className="text-sm text-muted-foreground">Email</p>
+              <p className="break-all font-medium text-primary">{profile?.email || user?.email || 'Не указан'}</p></div>
+            <div><p className="text-sm text-muted-foreground">Телефон</p>
+              <p className="font-medium text-primary">{profile?.phone || 'Не указан'}</p></div>
+          </div>}
         </CardContent>
       </Card>
 
@@ -101,7 +124,7 @@ export function StudentProfilePage() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold text-primary">Теория</p>
                   <span className="text-sm font-semibold text-primary">
-                    {theoryProgress}%
+                    {theoryLoading ? '…' : `${theoryProgress}%`}
                   </span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
@@ -111,7 +134,7 @@ export function StudentProfilePage() {
                   />
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Пройдено {theoryItemsDone} из {TOTAL_THEORY_ITEMS}. Осталось пройти: {theoryItemsLeft}
+                  {theoryLoading ? 'Загрузка прогресса…' : `Пройдено ${theoryItemsDone} из ${totalTheoryItems}. Осталось пройти: ${theoryItemsLeft}`}
                 </p>
               </div>
             </div>
@@ -130,11 +153,14 @@ export function StudentProfilePage() {
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
                 <Car className="h-6 w-6" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-semibold text-primary">Вождение</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Осталось часов: {drivingHoursLeft.toFixed(1)}
+                  {courseLoading ? 'Загрузка программы…' : course ? `Программа ${course.name}: ${course.hours} ак. ч.` : 'Программа вождения не назначена'}
                 </p>
+                <p className="mt-1 text-sm text-muted-foreground">Откатано: {drivenHours.toFixed(1)} ч.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Записано: {bookedHours.toFixed(1)} ч.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Осталось: {remainingHours === null ? '—' : `${remainingHours.toFixed(1)} ч.`}</p>
               </div>
             </div>
           </CardContent>
