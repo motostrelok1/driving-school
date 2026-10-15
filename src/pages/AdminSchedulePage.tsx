@@ -14,12 +14,7 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { DrivingSlot } from '@/types'
 import { supabase } from '@/lib/supabase'
-
-const durationOptions = [
-  { label: '1ч', value: 60 },
-  { label: '1,5ч', value: 90 },
-  { label: '2ч', value: 120 },
-]
+import { useDrivingSettings, DEFAULT_DRIVING_SETTINGS } from '@/features/schedule/useDrivingSettings'
 
 const dayStartHour = 6
 const dayEndHour = 24
@@ -45,6 +40,8 @@ function toDateInputValue(date: Date) {
 
 export function AdminSchedulePage() {
   const [searchParams] = useSearchParams()
+  const { data: drivingSettings } = useDrivingSettings()
+  const durationOptions = (drivingSettings ?? DEFAULT_DRIVING_SETTINGS).duration_options.map(option => ({ label: `${option.minutes} мин`, value: option.minutes }))
   const initialInstructorId = searchParams.get('instructor') ?? ''
   const { data: users = [], isLoading: usersLoading } = useAllUsers()
   const instructors = users.filter((person) => person.role === 'instructor')
@@ -56,6 +53,10 @@ export function AdminSchedulePage() {
     duration: 60,
     comment: '',
   })
+
+  useEffect(() => {
+    if (durationOptions.length && !durationOptions.some(option => option.value === form.duration)) setForm(old => ({...old,duration:durationOptions[0].value}))
+  }, [drivingSettings, form.duration, durationOptions.length])
 
   const { data: drivingSlots, isLoading: drivingSlotsLoading } = useAdminDrivingSlots(form.selectedDate)
   const createDrivingSlot = useCreateDrivingSlot()

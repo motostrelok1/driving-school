@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { NotificationButton } from '@/components/NotificationButton'
 import {
   GraduationCap,
+  Settings,
   Calendar,
   Users,
   Shield,
@@ -119,6 +120,12 @@ const navItems: NavItem[] = [
     label: 'ПДД',
     href: '/admin/pdd',
     icon: BookOpen,
+    roles: ['admin'],
+  },
+  {
+    label: 'Настройки',
+    href: '/admin/settings',
+    icon: Settings,
     roles: ['admin'],
   },
   {
