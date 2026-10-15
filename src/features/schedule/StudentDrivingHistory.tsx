@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import {useDrivingSettings, DEFAULT_DRIVING_SETTINGS, creditsForDuration} from '@/features/schedule/useDrivingSettings'
+
 
 type HistorySlot = {
   id: string
@@ -11,8 +11,14 @@ type HistorySlot = {
 }
 
 export function StudentDrivingHistory() {
-  const {data: drivingSettings}=useDrivingSettings()
-  const settings=drivingSettings??DEFAULT_DRIVING_SETTINGS
+  const {data:course,isLoading:courseLoading,error:courseError}=useQuery({queryKey:['my-driving-course'],queryFn:async()=>{
+    const {data:auth}=await supabase.auth.getUser()
+    if(!auth.user)throw new Error('Необходимо войти в систему')
+    const {data,error}=await supabase.from('student_driving_courses').select('category_id,driving_course_categories(name,academic_hours,duration_options)').eq('student_id',auth.user.id).maybeSingle()
+    if(error)throw error
+    return data?.driving_course_categories as {name:string;academic_hours:number;duration_options:Array<{minutes:number;academic_hours:number;kind:string}>}|null|undefined
+  }})
+  const academicFor=(minutes:number)=>course?.duration_options.find(x=>x.minutes===minutes)?.academic_hours??0
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['student-driving-history'],
@@ -31,10 +37,20 @@ export function StudentDrivingHistory() {
     },
     refetchOnWindowFocus: true,
   })
-  const completed = (data ?? []).reduce((sum, slot) => sum + creditsForDuration(slot.duration_minutes, settings), 0)
+  const completed = (data ?? []).reduce((sum, slot) => sum + academicFor(slot.duration_minutes), 0)
+  const actualMinutes = (data ?? []).reduce((sum,slot)=>sum+slot.duration_minutes,0)
+  const actualHours=Math.floor(actualMinutes/60)
+  const actualRemainder=actualMinutes%60
   return <section className="space-y-3 rounded-xl border bg-white p-4">
     <h2 className="font-semibold">История проведённых занятий</h2>
-    <p className="text-sm text-muted-foreground">Зачтено {completed} из {settings.required_credits} зачётных занятий · Осталось {Math.max(0, settings.required_credits - completed)}. Норма: {settings.required_academic_hours} учебных часов. Учитываются завершённые занятия со всеми инструкторами.</p>
+    {courseLoading&&<p className="text-sm text-muted-foreground">Загрузка программы…</p>}
+    {courseError&&<p role="alert" className="text-sm text-red-700">Не удалось загрузить программу: {courseError.message}</p>}
+    {course ? <div className="grid gap-3 sm:grid-cols-3 text-sm">
+      <div className="rounded-lg bg-slate-50 p-3"><strong className="block">Академические часы</strong><span>{completed} из {course.academic_hours}</span></div>
+      <div className="rounded-lg bg-slate-50 p-3"><strong className="block">Осталось</strong><span>{Math.max(0,course.academic_hours-completed)} акад. ч</span></div>
+      <div className="rounded-lg bg-slate-50 p-3"><strong className="block">Фактически откатано</strong><span>{actualHours} ч {actualRemainder} мин · {(data??[]).length} занятий</span></div>
+    </div> : <p className="text-sm text-muted-foreground">Программа обучения ещё не назначена администратором. Завершённые занятия и фактическое время отображаются ниже; академический зачёт будет доступен после назначения программы. Фактически откатано: {actualHours} ч {actualRemainder} мин.</p>}
+    <p className="text-sm text-muted-foreground">Учитываются завершённые занятия со всеми инструкторами, включая пробные/подарочные (они дают 0 академических часов).</p>
     {isLoading && <p className="text-sm text-muted-foreground">Загрузка истории…</p>}
     {error && <div role="alert" className="text-sm text-red-700">Не удалось загрузить историю. <button className="underline" onClick={() => void refetch()}>Повторить</button></div>}
     {!isLoading && !error && data?.length === 0 && <p className="text-sm text-muted-foreground">Проведённых занятий пока нет.</p>}
@@ -44,7 +60,7 @@ export function StudentDrivingHistory() {
       return <div key={slot.id} className="rounded-lg border">
         <button className="flex w-full items-center justify-between gap-2 p-3 text-left" onClick={() => setExpandedId(current => current === slot.id ? null : slot.id)}>
           <span className="text-sm font-medium">{start.toLocaleDateString('ru-RU')} · {start.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})}–{end.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})}</span>
-          <span className="text-xs text-muted-foreground">{creditsForDuration(slot.duration_minutes, settings)} зачёт.</span>
+          <span className="text-xs text-muted-foreground">{course ? `${academicFor(slot.duration_minutes)} акад. ч` : `${slot.duration_minutes} мин`}.</span>
         </button>
         {expandedId === slot.id && <div className="space-y-1 border-t p-3 text-sm">
           <p>Инструктор: {slot.instructor?.full_name || 'Не указан'}</p>
