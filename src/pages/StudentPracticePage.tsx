@@ -265,6 +265,7 @@ function MyDrivingBookingsCard({
             slots.map((slot) => {
               const startDate = new Date(slot.start_at)
               const endDate = new Date(startDate.getTime() + slot.duration_minutes * 60 * 1000)
+              const canCancel = startDate.getTime() > Date.now() + 24 * 60 * 60 * 1000
 
               return (
                 <button
@@ -285,6 +286,7 @@ function MyDrivingBookingsCard({
                   <p className="mt-2 text-sm font-medium text-secondary">
                     {slot.instructor?.full_name || 'Инструктор'}
                   </p>
+                  {!canCancel && <p className="mt-2 text-xs text-amber-800">Самостоятельная отмена недоступна менее чем за 24 часа до начала. По болезни обратитесь к администратору со справкой.</p>}
                 </button>
               )
             })
@@ -298,6 +300,7 @@ function MyDrivingBookingsCard({
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
           <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-lg sm:p-5">
             <h2 className="text-lg font-semibold text-primary">Отменить занятие?</h2>
+            {new Date(activeSlot.start_at).getTime() <= Date.now() + 24 * 60 * 60 * 1000 && <p className="mt-2 text-sm text-amber-800">Отменить запись самостоятельно можно только более чем за 24 часа. При болезни предоставьте справку администратору для рассмотрения отмены.</p>}
             <p className="mt-2 text-sm text-muted-foreground">
               {format(new Date(activeSlot.start_at), 'd MMMM, HH:mm', { locale: ru })}
             </p>
@@ -320,6 +323,7 @@ function MyDrivingBookingsCard({
                 variant="outline"
                 className="border border-danger/30 bg-danger/10 text-danger hover:bg-danger/15"
                 isLoading={isCancelling}
+                disabled={new Date(activeSlot.start_at).getTime() <= Date.now() + 24 * 60 * 60 * 1000}
                 onClick={async () => {
                   setCancelError(null)
                   try {
