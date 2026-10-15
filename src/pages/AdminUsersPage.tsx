@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
+import { AdminStudentCourseSelect } from '@/features/admin/AdminStudentCourseSelect'
 import { AdminTheoryAssessmentModal } from '@/features/theory/AdminTheoryAssessmentModal'
 import type { Profile, UserRole } from '@/types'
 import {
@@ -894,6 +895,7 @@ export function AdminUsersPage() {
 
                   {isExpanded ? (
                     <div className="border-t border-border p-3">
+                      {user.role === 'student' && <AdminStudentCourseSelect studentId={user.id} />}
                       <div className="mb-3 min-w-0">
                         <p className="break-all text-sm text-muted-foreground">
                           {user.email || 'Email не указан'}
