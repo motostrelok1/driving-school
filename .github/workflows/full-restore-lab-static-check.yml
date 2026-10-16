@@ -1,0 +1,29 @@
+name: Проверка сценария восстановления (без запуска)
+on:
+  pull_request:
+    paths:
+      - scripts/supabase-full-restore-lab.sh
+      - .github/workflows/full-restore-lab-static-check.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Проверка Bash-синтаксиса
+        run: bash -n scripts/supabase-full-restore-lab.sh
+      - name: Проверка обязательных ограничений
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path("scripts/supabase-full-restore-lab.sh").read_text()
+          required = ['--network none', '--pull never', '--restart no', '--no-owner', '--no-acl', '--single-transaction', '--exit-on-error']
+          for guard in required:
+              assert guard in s, f"Missing safety guard: {guard}"
+          forbidden = ['docker volume rm', 'docker rm ', 'docker compose down', '--network host', '--privileged']
+          for command in forbidden:
+              assert command not in s, f"Forbidden in lab script: {command}"
+          print("Static restore lab guard check passed; no database was accessed.")
+          PY
