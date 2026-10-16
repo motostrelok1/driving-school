@@ -8,6 +8,7 @@ import { useTickets } from '@/features/tickets/useTickets'
 import { pddTopics } from '@/pages/pddTopics'
 import { usePublishedPdd, PddPublishedList, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
 import { cn } from '@/utils/cn'
+import { supabase } from '@/lib/supabase'
 
 function getTicketImageSrc(image: string) {
   if (image.startsWith('/') || image.startsWith('http')) {
@@ -93,10 +94,37 @@ export function StudentTheoryCoursePage() {
   }, [watchedVideoIds])
 
 
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data, error } = await supabase.from('theory_video_progress')
+        .select('video_id').eq('user_id', user.id)
+      if (!alive || error) return
+      const local = getStoredStringList('watched-theory-videos')
+      const merged = Array.from(new Set([...local, ...(data ?? []).map(row => row.video_id)]))
+        .filter(id => courseVideos.some(video => video.id === id))
+      if (alive) setWatchedVideoIds(merged)
+      const missing = merged.filter(id => !(data ?? []).some(row => row.video_id === id))
+      if (missing.length) {
+        const { error: uploadError } = await supabase.from('theory_video_progress').upsert(
+          missing.map(video_id => ({ user_id: user.id, video_id })), { onConflict: 'user_id,video_id', ignoreDuplicates: true })
+        if (uploadError) console.warn('Не удалось синхронизировать видео', uploadError.message)
+      }
+    })()
+    return () => { alive = false }
+  }, [])
+
   function markVideoWatched(videoId: string) {
-    setWatchedVideoIds((current) =>
-      current.includes(videoId) ? current : [...current, videoId]
-    )
+    setWatchedVideoIds(current => current.includes(videoId) ? current : [...current, videoId])
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { error } = await supabase.from('theory_video_progress').upsert(
+        { user_id: user.id, video_id }, { onConflict: 'user_id,video_id', ignoreDuplicates: true })
+      if (error) console.warn('Прогресс видео сохранён локально, синхронизация пока недоступна', error.message)
+    })()
   }
 
   return (
