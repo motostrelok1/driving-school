@@ -121,7 +121,7 @@ check("ученик НЕ видит чужое занятие", st == "200" and 
 data, st = rest("GET", f"/lessons?id=eq.{l1}", tokens["instructor"])
 check("инструктор читает своё занятие", st == "200" and len(data) == 1)
 data, st = rest("PATCH", f"/lessons?id=eq.{l1}", tokens["s1"], {"comment": "взлом"}, "return=minimal")
-check("ученик НЕ правит занятие (нет UPDATE-политики)", not (st == "200" and sql(f"SELECT comment FROM public.lessons WHERE id='{l1}';") == "взлом"), f"st={st}")
+check("ученик НЕ правит занятие (нет UPDATE-политики)", sql(f"SELECT coalesce(comment, '') FROM public.lessons WHERE id='{l1}';") != "взлом", f"st={st}")
 
 print("=== ФИНАНСЫ (student_finances) ===")
 data, st = rest("GET", "/student_finances?select=id", tokens["s1"])
