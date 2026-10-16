@@ -18,7 +18,7 @@ services:
   auth:
     image: supabase/gotrue:v2.196.0
     restart: "no"
-    depends_on: [db]
+    depends_on: [db, mailpit]
     environment:
       GOTRUE_API_HOST: "0.0.0.0"
       GOTRUE_API_PORT: "9999"
@@ -35,11 +35,30 @@ services:
       GOTRUE_MAILER_AUTOCONFIRM: "true"
       GOTRUE_DISABLE_SIGNUP: "false"
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
-      GOTRUE_SMTP_HOST: "localhost"
-      GOTRUE_SMTP_PORT: "2525"
+      GOTRUE_SMTP_ADMIN_EMAIL: "admin@test.local"
+      GOTRUE_SMTP_FROM: "auth@test.local"
+      GOTRUE_SMTP_HOST: "mailpit"
+      GOTRUE_SMTP_PORT: "1025"
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+  # Локальный доступ к API: у контейнеров в internal-сети Docker НЕ публикует
+  # порты на хост, поэтому каждый сервис публикуется через dual-homed socat-прокси
+  # (test_internal + test_edge). Публикуется только на 127.0.0.1 сервера.
+  auth-local:
+    image: alpine/socat:latest
+    restart: "no"
+    command: TCP-LISTEN:9999,fork,reuseaddr TCP:auth:9999
     ports:
       - "127.0.0.1:19999:9999"
-    networks: [test_internal]
+    networks: [test_internal, test_edge]
+    security_opt: [no-new-privileges:true]
+  rest-local:
+    image: alpine/socat:latest
+    restart: "no"
+    command: TCP-LISTEN:3000,fork,reuseaddr TCP:rest:3000
+    ports:
+      - "127.0.0.1:18080:3000"
+    networks: [test_internal, test_edge]
     security_opt: [no-new-privileges:true]
   rest:
     image: postgrest/postgrest:v14.17
@@ -52,12 +71,26 @@ services:
       PGRST_JWT_SECRET: ${TEST_JWT_SECRET:?required}
       PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
       PGRST_DB_MAX_ROWS: "1000"
-    ports:
-      - "127.0.0.1:18080:3000"
     networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: "no"
+    # Ловушка писем: SMTP внутри тестовой сети, письма наружу не уходят
+    # (сеть internal, у mailpit нет внешнего SMTP-апстрима).
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+  mailpit-local:
+    image: alpine/socat:latest
+    restart: "no"
+    command: TCP-LISTEN:8025,fork,reuseaddr TCP:mailpit:8025
+    ports:
+      - "127.0.0.1:18025:8025"
+    networks: [test_internal, test_edge]
     security_opt: [no-new-privileges:true]
 networks:
   test_internal:
     internal: true
+  test_edge: {}
 volumes:
   test_postgres_data:
