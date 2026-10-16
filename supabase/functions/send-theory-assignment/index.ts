@@ -1,8 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+const allowedOrigin = Deno.env.get("FUNCTIONS_CORS_ORIGIN") ?? "https://dvizh-school.ru";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://dvizh-school.ru",
+  "Access-Control-Allow-Origin": allowedOrigin,
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };

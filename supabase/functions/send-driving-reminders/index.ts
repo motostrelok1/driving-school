@@ -3,8 +3,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SCHOOL_TIME_ZONE = "Europe/Moscow";
 
+const allowedOrigin = Deno.env.get("FUNCTIONS_CORS_ORIGIN") ?? "https://dvizh-school.ru";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://dvizh-school.ru",
+  "Access-Control-Allow-Origin": allowedOrigin,
   "Access-Control-Allow-Headers": "content-type, x-reminder-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
