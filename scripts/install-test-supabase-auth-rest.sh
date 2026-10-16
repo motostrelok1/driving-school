@@ -138,9 +138,6 @@ FROM auth.users u
 WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id);
 SQL
 test "$(sql "select count(*) from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal")" = 1 || fail 'Profile trigger missing'
-# Outbound mail is impossible: SMTP points at internal mailpit, network is internal-only.
-echo 'Starting localhost-only Auth, REST, Mailpit and port proxies'
-dc up -d
 # Realtime шифрует JWT-секрет тенанта AES-128-ECB: ключ строго 16 байт.
 # Схема _realtime создаётся до старта realtime (мигратору нужна для
 # schema_migrations, образ её сам не создаёт).
@@ -150,6 +147,9 @@ CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION supabase_admin;
 -- в ней подписки регистрируются, но события не приходят.
 ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
 SQL
+# Outbound mail is impossible: SMTP points at internal mailpit, network is internal-only.
+echo 'Starting localhost-only Auth, REST, Mailpit and port proxies'
+dc up -d
 # A running container alone is not evidence that the API works.
 for service in auth rest storage gateway realtime; do
   container=$(dc ps -q "$service")
