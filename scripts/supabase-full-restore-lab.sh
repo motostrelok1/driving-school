@@ -59,8 +59,13 @@ for i in $(seq 1 30); do
 done
 execsql() { docker exec "$NAME" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d "$DB" -Atc "$1"; }
 restore() { docker exec "$NAME" pg_restore --single-transaction --exit-on-error --no-owner --no-acl -U supabase_admin -d "$DB" "$@" /backup/cloud-backup.dump; }
-echo 'Restoring application public schema before user data...'
-restore --section=pre-data --schema=public
+echo 'Restoring application public objects before user data...'
+# Supabase bootstrap already creates the public schema. Remove ONLY its
+# CREATE SCHEMA TOC item, not the application's own tables/functions.
+docker exec "$NAME" sh -c 'pg_restore -l /backup/cloud-backup.dump | sed -E "/^[0-9]+; [0-9]+ [0-9]+ SCHEMA - public /d" > /tmp/public-restore.toc'
+docker exec "$NAME" pg_restore --single-transaction --exit-on-error --no-owner --no-acl \
+  --section=pre-data --schema=public --use-list=/tmp/public-restore.toc \
+  -U supabase_admin -d "$DB" /backup/cloud-backup.dump
 echo 'Checking target Auth state before loading user records...'
 # Never mix a live or pre-populated Auth database with archived user identities.
 auth_rows=$(execsql 'SELECT count(*) FROM auth.users;')
