@@ -1,0 +1,63 @@
+name: driving-school-supabase-test
+services:
+  db:
+    image: supabase/postgres:17.6.1.136
+    restart: "no"
+    command: ["postgres", "-D", "/etc/postgresql", "-c", "listen_addresses=*"]
+    environment:
+      POSTGRES_USER: supabase_admin
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:?required}
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+      - /opt/backups/supabase/cloud-backup.dump:/backup/cloud-backup.dump:ro
+    networks: [test_internal]
+    mem_limit: 1024m
+    pids_limit: 256
+    security_opt: [no-new-privileges:true]
+  auth:
+    image: supabase/gotrue:v2.196.0
+    restart: "no"
+    depends_on: [db]
+    environment:
+      GOTRUE_API_HOST: "0.0.0.0"
+      GOTRUE_API_PORT: "9999"
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${TEST_POSTGRES_PASSWORD:?required}@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:18080
+      API_EXTERNAL_URL: http://localhost:19999
+      GOTRUE_JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_SMTP_HOST: "localhost"
+      GOTRUE_SMTP_PORT: "2525"
+    ports:
+      - "127.0.0.1:19999:9999"
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+  rest:
+    image: postgrest/postgrest:v14.17
+    restart: "no"
+    depends_on: [db]
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${TEST_POSTGRES_PASSWORD:?required}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_MAX_ROWS: "1000"
+    ports:
+      - "127.0.0.1:18080:3000"
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+networks:
+  test_internal:
+    internal: true
+volumes:
+  test_postgres_data:
