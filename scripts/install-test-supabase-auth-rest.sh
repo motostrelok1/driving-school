@@ -156,7 +156,7 @@ echo 'Creating storage buckets and policies'
 docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
   < "$ROOT/storage-buckets.sql" >/dev/null
 test "$(sql "select count(*) from storage.buckets")" = 3 || fail 'Bucket count mismatch'
-test "$(sql "select count(*) from pg_policies where schemaname='storage'")" = 6 || fail 'Storage policy count mismatch'
+test "$(sql "select count(*) from pg_policies where schemaname='storage'")" = 8 || fail 'Storage policy count mismatch'
 echo '=== SERVICE STATUS ==='
 dc ps
 echo 'Gateway: http://127.0.0.1:28000/ (auth/v1, rest/v1, storage/v1)'

@@ -19,11 +19,17 @@ GW = "http://127.0.0.1:28000"
 ENVFILE = "/opt/driving-school-supabase-test/.env"
 env = dict(l.strip().split("=", 1) for l in open(ENVFILE) if "=" in l and not l.startswith("#"))
 ANON = env["TEST_ANON_KEY"]
+SERVICE = env["TEST_SERVICE_ROLE_KEY"]
 DB = "driving-school-supabase-test-db-1"
 
 PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d494844520000000100000001080600000"
     "01f15c4890000000d4944415478da63fcffff3f030005fe02fea735814"
+    "d0000000049454e44ae426082"
+)
+PNG2 = bytes.fromhex(
+    "89504e470d0a1a0a0000000d494844520000000100000001080400000"
+    "01f15c4890000000d4944415478da63fcfcf9c9020005fe02fe7a52c2c"
     "d0000000049454e44ae426082"
 )
 
@@ -75,6 +81,10 @@ _, st = storage("POST", f"/object/{priv_obj}", tokA, PNG)
 check("ученик A загружает в приватный бакет", st in ("200", "201"), f"st={st}")
 _, st = storage("POST", f"/object/avatars/{suffix}/anon.png", None, PNG)
 check("аноним НЕ загружает", st.startswith("4"), f"st={st}")
+bad_media = f"lesson-media/{suffix}/student-fake.png"
+_, st = storage("POST", f"/object/{bad_media}", tokA, PNG)
+leftover = subprocess.run(["docker","exec",DB,"psql","-X","-At","-U","supabase_admin","-d","postgres","-c",f"SELECT count(*) FROM storage.objects WHERE name='{suffix}/student-fake.png';"],text=True,capture_output=True).stdout.strip()
+check("ученик НЕ загружает в lesson-media (запрет по роли)", not st.startswith("2") and leftover == "0", f"st={st}, db={leftover}")
 
 print("=== ЧТЕНИЕ ===")
 body, st = storage("GET", f"/object/public/{pub_obj}")
@@ -87,6 +97,17 @@ _, st = storage("GET", f"/object/authenticated/{priv_obj}", tokB)
 check("ученик B НЕ читает чужой приватный объект", st.startswith("4"), f"st={st}")
 _, st = storage("GET", f"/object/authenticated/{priv_obj}")
 check("аноним НЕ читает приватный объект", st.startswith("4"), f"st={st}")
+body, st = storage("GET", f"/object/authenticated/{priv_obj}", SERVICE)
+check("service_role читает приватный объект (обход RLS по дизайну)", st == "200" and body.encode("latin-1", "replace") != "", f"st={st}")
+
+print("=== ОБНОВЛЕНИЕ ===")
+# update() в supabase-js — это PUT /object/{bucket}/{path} (StorageFileApi.uploadOrUpdate)
+_, st = storage("PUT", f"/object/{pub_obj}", tokA, PNG2)
+body, st2 = storage("GET", f"/object/public/{pub_obj}")
+check("владелец обновляет свой объект", st.startswith("2") and st2 == "200" and len(body) > 0 and body.encode("latin-1", "replace") != PNG.decode("latin-1", "replace"), f"st={st}, get={st2}")
+_, st = storage("PUT", f"/object/{pub_obj}", tokB, PNG)
+body, st2 = storage("GET", f"/object/public/{pub_obj}")
+check("ученик B НЕ обновляет чужой объект", not st.startswith("2") and st2 == "200" and body.encode("latin-1", "replace") != PNG.decode("latin-1", "replace"), f"st={st}, get={st2}")
 
 print("=== УДАЛЕНИЕ ===")
 _, st = storage("DELETE", f"/object/{priv_obj}", tokB)
@@ -97,14 +118,21 @@ _, st = storage("DELETE", f"/object/{pub_obj}", tokB)
 check("ученик B НЕ удаляет чужой публичный объект", subprocess.run(["docker","exec",DB,"psql","-X","-At","-U","supabase_admin","-d","postgres","-c",f"SELECT count(*) FROM storage.objects WHERE name='{suffix}/photo.png';"],text=True,capture_output=True).stdout.strip() == "1", f"st={st}")
 
 print("=== CORS / ЗАГОЛОВКИ ===")
-r = subprocess.run(["curl", "-sS", "-D", "-", "-o", "/dev/null", "-X", "OPTIONS",
-                    "-H", "Origin: https://pwa-test.example",
-                    "-H", "Access-Control-Request-Method: POST",
-                    "-H", "Access-Control-Request-Headers: authorization,content-type,apikey",
-                    GW + "/storage/v1/object/" + pub_obj], text=True, capture_output=True)
-h = r.stdout.lower()
-check("preflight отвечает access-control-allow-origin", "access-control-allow-origin" in h, r.stdout[:200])
-check("preflight разрешает authorization/apikey", "authorization" in h and "apikey" in h, r.stdout[:300])
+def preflight(origin):
+    r = subprocess.run(["curl", "-sS", "-D", "-", "-o", "/dev/null", "-X", "OPTIONS",
+                        "-H", f"Origin: {origin}",
+                        "-H", "Access-Control-Request-Method: POST",
+                        "-H", "Access-Control-Request-Headers: authorization,content-type,apikey",
+                        GW + "/storage/v1/object/" + pub_obj], text=True, capture_output=True)
+    return r.stdout.lower()
+h = preflight("https://edu.dvizh-school.ru")
+check("preflight разрешённому origin выдаёт ACAO", "access-control-allow-origin: https://edu.dvizh-school.ru" in h, h[:200])
+check("preflight разрешает authorization/apikey", "authorization" in h and "apikey" in h, h[:300])
+am = [l.split(":", 1)[1] for l in h.splitlines() if "access-control-allow-methods" in l]
+methods = am[0] if am else ""
+check("preflight не содержит CONNECT/TRACE и credentials", "connect" not in methods and "trace" not in methods and "allow-credentials" not in h, h[:400])
+h = preflight("https://evil.example")
+check("preflight чужому origin НЕ выдаёт ACAO", "access-control-allow-origin" not in h, h[:200])
 
 print(f"=== ИТОГ: {len(passed)} passed, {len(failed)} failed ===")
 for f_ in failed: print("  FAILED:", f_)
