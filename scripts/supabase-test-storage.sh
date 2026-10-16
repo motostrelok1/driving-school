@@ -78,7 +78,7 @@ check("аноним НЕ загружает", st.startswith("4"), f"st={st}")
 
 print("=== ЧТЕНИЕ ===")
 body, st = storage("GET", f"/object/public/{pub_obj}")
-check("аноним читает публичный объект", st == "200" and body.encode("latin-1", errors="ignore") != "", f"st={st}")
+check("аноним читает публичный объект", st == "200" and len(body) > 0, f"st={st}")
 _, st = storage("GET", f"/object/public/{pub_obj}", tokB)
 check("ученик B читает публичный объект", st == "200", f"st={st}")
 _, st = storage("GET", f"/object/authenticated/{priv_obj}", tokA)
