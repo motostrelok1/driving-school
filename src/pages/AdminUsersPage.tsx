@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
   useAllUsers,
@@ -80,6 +81,53 @@ function getAdminAuthErrorMessage(message: string) {
   }
 
   return message
+}
+
+type DrivingSummary = { completed: number; booked: number; total: number; courseName: string }
+function AdminStudentDrivingProgress({ studentId }: { studentId: string }) {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ['admin-student-driving-progress', studentId],
+    queryFn: async (): Promise<DrivingSummary | null> => {
+      const { data: assignment, error: assignmentError } = await supabase.from('student_driving_courses')
+        .select('category_id').eq('student_id', studentId).maybeSingle()
+      if (assignmentError) throw assignmentError
+      if (!assignment) return null
+      const [categoryResult, slotsResult] = await Promise.all([
+        supabase.from('driving_course_categories').select('name,academic_hours,duration_options')
+          .eq('id', assignment.category_id).single(),
+        supabase.from('driving_slots').select('start_at,duration_minutes')
+          .eq('student_id', studentId).eq('status', 'booked'),
+      ])
+      if (categoryResult.error) throw categoryResult.error
+      if (slotsResult.error) throw slotsResult.error
+      const course = categoryResult.data
+      const options = Array.isArray(course.duration_options)
+        ? course.duration_options as Array<{ minutes: number; academic_hours: number }> : []
+      let completed = 0
+      let booked = 0
+      const now = Date.now()
+      for (const slot of slotsResult.data ?? []) {
+        const hours = options.find(option => option.minutes === slot.duration_minutes)?.academic_hours
+        if (hours === undefined) throw new Error('Для длительности занятия не заданы академические часы')
+        if (new Date(slot.start_at).getTime() + slot.duration_minutes * 60_000 <= now) completed += hours
+        else booked += hours
+      }
+      return { completed, booked, total: course.academic_hours, courseName: course.name }
+    },
+    staleTime: 30_000,
+  })
+  if (isPending) return <p className="mt-1 text-sm text-slate-500">Загрузка прогресса…</p>
+  if (isError) return <p className="mt-1 text-sm text-rose-700">Не удалось загрузить прогресс вождения</p>
+  if (!data) return <p className="mt-1 text-sm text-slate-500">Программа вождения не назначена</p>
+  const percent = data.total > 0 ? Math.min(100, Math.round(data.completed / data.total * 100)) : 0
+  return <>
+    <p className="mt-1 text-sm text-slate-600">{data.completed} из {data.total} ак. ч. · {percent}%</p>
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar"
+      aria-label="Прогресс вождения" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${percent}%` }} />
+    </div>
+    <p className="mt-1 text-xs text-slate-500">{data.courseName} · записано: {data.booked} ак. ч.</p>
+  </>
 }
 
 export function AdminUsersPage() {
@@ -912,8 +960,7 @@ export function AdminUsersPage() {
                             </div>
                             <div>
                               <p className="text-xs font-medium text-slate-500">Вождение</p>
-                              <p className="mt-1 text-sm text-slate-500">Прогресс — подключение на следующем этапе</p>
-                              <div className="mt-2 h-1.5 rounded-full bg-slate-100" role="img" aria-label="Прогресс вождения пока недоступен" />
+                              <AdminStudentDrivingProgress studentId={user.id} />
                             </div>
                           </div>
                           {documentStatusByUser[user.id] && !documentsCompleteForUser(user.id) ? (
