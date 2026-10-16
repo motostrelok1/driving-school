@@ -13,6 +13,8 @@ test "$(id -u)" = 0 || fail 'Must run as root'
 test -f "$COMPOSE" || fail 'Install reviewed compose.yml first'
 test "$(stat -c %a "$COMPOSE")" != 777 || fail 'Insecure compose file permissions'
 test -f "$ROOT/storage-buckets.sql" || fail 'Install reviewed storage-buckets.sql first'
+test -d "$ROOT/functions" || fail 'Install reviewed functions directory first'
+test -f "$ROOT/app-schema-catchup.sql" || fail 'Install reviewed app-schema-catchup.sql first'
 test -r /opt/backups/supabase/cloud-backup.dump || fail 'Archive missing'
 test "$(docker inspect "$LAB" --format '{{.HostConfig.NetworkMode}}')" = none || fail 'Lab network changed'
 test "$(docker exec "$LAB" psql -X -U supabase_admin -d postgres -Atc 'select count(*) from auth.users')" = 0 || fail 'Lab has users'
@@ -36,7 +38,7 @@ def token(role):
 p=pathlib.Path(sys.argv[1])
 # TEST_REALTIME_ENC_KEY строго 16 байт: realtime шифрует JWT-секрет тенанта
 # через AES-128-ECB и падает с "Bad key size" при другой длине.
-p.write_text(f'TEST_POSTGRES_PASSWORD={password}\nTEST_JWT_SECRET={secret}\nTEST_REALTIME_ENC_KEY={secrets.token_hex(8)}\nTEST_SECRET_KEY_BASE={secrets.token_urlsafe(64)}\nTEST_ANON_KEY={token("anon")}\nTEST_SERVICE_ROLE_KEY={token("service_role")}\n')
+p.write_text(f'TEST_POSTGRES_PASSWORD={password}\nTEST_JWT_SECRET={secret}\nTEST_REALTIME_ENC_KEY={secrets.token_hex(8)}\nTEST_SECRET_KEY_BASE={secrets.token_urlsafe(64)}\nTEST_ANON_KEY={token("anon")}\nTEST_SERVICE_ROLE_KEY={token("service_role")}\nTEST_DRIVING_REMINDER_SECRET={secrets.token_urlsafe(32)}\nTEST_ONESIGNAL_EVENT_STREAM_SECRET={secrets.token_urlsafe(32)}\n')
 p.chmod(0o600)
 PY
 dc(){ env -i PATH="$PATH" HOME="$HOME" docker compose --project-name "$PROJECT" --env-file "$ENVFILE" -f "$COMPOSE" "$@"; }
@@ -151,7 +153,7 @@ SQL
 echo 'Starting localhost-only Auth, REST, Mailpit and port proxies'
 dc up -d
 # A running container alone is not evidence that the API works.
-for service in auth rest storage gateway realtime; do
+for service in auth rest storage gateway realtime functions; do
   container=$(dc ps -q "$service")
   test -n "$container" || fail "Missing container for $service"
   test "$(docker inspect "$container" --format '{{.State.Running}}')" = true || fail "$service exited"
@@ -168,9 +170,14 @@ docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d po
   < "$ROOT/storage-buckets.sql" >/dev/null
 test "$(sql "select count(*) from storage.buckets")" = 3 || fail 'Bucket count mismatch'
 test "$(sql "select count(*) from pg_policies where schemaname='storage'")" = 8 || fail 'Storage policy count mismatch'
+echo 'Applying app schema catch-up (backup schema lags repo migrations)'
+docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  < "$ROOT/app-schema-catchup.sql" >/dev/null
+test "$(sql "select count(*) from pg_proc where proname='claim_theory_assignment_notification'")" = 1 \
+  || fail 'Schema catch-up missing'
 echo '=== SERVICE STATUS ==='
 dc ps
-echo 'Gateway: http://127.0.0.1:28000/ (auth/v1, rest/v1, storage/v1)'
+echo 'Gateway: http://127.0.0.1:28000/ (auth/v1, rest/v1, storage/v1, realtime/v1, functions/v1)'
 echo 'Mailpit UI: http://127.0.0.1:18025/'
 echo 'Test keys are stored locally in root-only .env; NEVER paste them into chat.'
 echo 'No public HTTPS gateway or PWA installed. Do not point production here.'

@@ -1,7 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 Deno.serve(async req => {
-  const headers = { "Access-Control-Allow-Origin": "https://dvizh-school.ru", "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type" };
+  const allowedOrigin = Deno.env.get("FUNCTIONS_CORS_ORIGIN") ?? "https://dvizh-school.ru";
+  const headers = { "Access-Control-Allow-Origin": allowedOrigin, "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type" };
   if (req.method === "OPTIONS") return new Response("ok", { headers });
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers });
   const url = Deno.env.get("SUPABASE_URL")!, anon = Deno.env.get("SUPABASE_ANON_KEY")!;
