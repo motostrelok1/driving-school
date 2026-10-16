@@ -1,0 +1,24 @@
+name: Проверка подготовки тестового API
+on:
+  pull_request:
+    paths:
+      - scripts/supabase-clean-test-preflight.sh
+      - .github/workflows/supabase-test-api-preflight.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash -n scripts/supabase-clean-test-preflight.sh
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('scripts/supabase-clean-test-preflight.sh').read_text()
+          assert '--network none' not in s or 'none' in s
+          for v in ['docker run', 'docker rm', 'docker network connect', 'ALTER ', 'DROP ', 'CREATE ', 'INSERT ', 'UPDATE ', 'DELETE ']:
+              assert v not in s, v
+          print('Read-only static checks passed')
+          PY
