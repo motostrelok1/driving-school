@@ -1,0 +1,30 @@
+name: Тестовый Supabase Auth REST — статическая проверка
+on:
+  pull_request:
+    paths:
+      - docker/test-supabase/**
+      - scripts/install-test-supabase-auth-rest.sh
+      - .github/workflows/test-supabase-auth-rest-static.yml
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Bash синтаксис
+        run: bash -n scripts/install-test-supabase-auth-rest.sh
+      - name: Проверка статических ограничений
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('scripts/install-test-supabase-auth-rest.sh').read_text()
+          c=Path('docker/test-supabase/compose.yml').read_text()
+          for key in ['--no-owner','--no-acl','--section="$section"','--single-transaction','--exit-on-error']:
+              assert key in s,key
+          for key in ['internal: true','127.0.0.1:19999','127.0.0.1:18080','TEST_JWT_SECRET','TEST_POSTGRES_PASSWORD']:
+              assert key in c,key
+          for key in ['--data-only','docker volume rm','docker compose down','--privileged','network_mode: host']:
+              assert key not in s+c,key
+          print('Static checks passed; no test server deployed')
+          PY
