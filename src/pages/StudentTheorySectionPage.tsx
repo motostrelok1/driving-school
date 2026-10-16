@@ -122,7 +122,7 @@ export function StudentTheoryCoursePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { error } = await supabase.from('theory_video_progress').upsert(
-        { user_id: user.id, video_id }, { onConflict: 'user_id,video_id', ignoreDuplicates: true })
+        { user_id: user.id, video_id: videoId }, { onConflict: 'user_id,video_id', ignoreDuplicates: true })
       if (error) console.warn('Прогресс видео сохранён локально, синхронизация пока недоступна', error.message)
     })()
   }
