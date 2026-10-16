@@ -24,6 +24,10 @@ import { AdminTheoryAssessmentModal } from '@/features/theory/AdminTheoryAssessm
 import type { Profile, UserRole } from '@/types'
 import {
   CalendarDays,
+  Copy,
+  Mail,
+  Phone,
+  UserRound,
   ClipboardCheck,
   CircleGauge,
   ChevronDown,
@@ -864,16 +868,17 @@ export function AdminUsersPage() {
               return (
                 <div
                   key={user.id}
-                  className="min-w-0 rounded-lg border border-border"
+                  className={`min-w-0 overflow-hidden border border-border ${isExpanded && user.role === 'student' ? 'rounded-2xl bg-slate-100 p-3 sm:p-5' : 'rounded-lg'}`}
                 >
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-muted"
+                    className={`flex w-full items-center justify-between gap-3 text-left ${isExpanded && user.role === 'student' ? 'rounded-t-2xl border border-b-0 border-slate-200 bg-white px-4 pb-3 pt-5 sm:px-6' : 'p-3 hover:bg-muted'}`}
                     aria-expanded={isExpanded}
                     onClick={() => toggleExpanded(user.id)}
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium text-primary">
+                    <span className="flex min-w-0 items-center gap-3">
+                      {user.role === 'student' && isExpanded ? <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-50 font-semibold text-indigo-600">{user.full_name?.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || <UserRound className="h-5 w-5" />}</span> : null}
+                      <span className="min-w-0"><span className="block truncate font-medium text-primary">
                         {user.full_name || 'Без имени'}
                       </span>
                       {groupLabel ? (
@@ -881,6 +886,7 @@ export function AdminUsersPage() {
                           Группа: {groupLabel}
                         </span>
                       ) : null}
+                      </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
                       <Badge variant={isCurrentAdmin ? 'danger' : 'secondary'}>
@@ -895,23 +901,43 @@ export function AdminUsersPage() {
                   </button>
 
                   {isExpanded ? (
-                    <div className="border-t border-border p-3">
-                      <div className="mb-3 min-w-0">
-                        <p className="break-all text-sm text-muted-foreground">
-                          {user.email || 'Email не указан'}
-                        </p>
-                        <p className="break-all text-sm text-muted-foreground">
-                          {user.phone ? (
-                            <a href={`tel:${user.phone}`} className="hover:underline">
-                              {user.phone}
-                            </a>
+                    <div className={user.role === 'student' ? 'rounded-b-2xl border border-t-0 border-slate-200 bg-white px-4 pb-5 pt-2 sm:px-6' : 'border-t border-border p-3'}>
+                      {user.role === 'student' ? (
+                        <div className="mb-4 space-y-3">
+                          <div className="grid gap-3 border-b border-slate-100 pb-4 sm:grid-cols-2">
+                            <div>
+                              <p className="text-xs font-medium text-slate-500">Теория</p>
+                              <p className="mt-1 text-sm text-slate-500">Прогресс — подключение на следующем этапе</p>
+                              <div className="mt-2 h-1.5 rounded-full bg-slate-100" role="img" aria-label="Прогресс теории пока недоступен" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-slate-500">Вождение</p>
+                              <p className="mt-1 text-sm text-slate-500">Прогресс — подключение на следующем этапе</p>
+                              <div className="mt-2 h-1.5 rounded-full bg-slate-100" role="img" aria-label="Прогресс вождения пока недоступен" />
+                            </div>
+                          </div>
+                          {documentStatusByUser[user.id] && !documentsCompleteForUser(user.id) ? (
+                            <div className="rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-3 text-sm text-rose-700">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-medium">Документы заполнены не полностью</span>
+                                <button type="button" className="font-medium underline underline-offset-2" onClick={() => void openDocuments(user)}>К документам →</button>
+                              </div>
+                            </div>
                           ) : (
-                            'Телефон не указан'
+                            <div className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-500">
+                              {documentStatusByUser[user.id] ? 'Документы заполнены' : 'Состояние документов пока не проверено'}
+                            </div>
                           )}
-                        </p>
-                        <p className="break-all text-xs text-muted-foreground">
-                          {user.id}
-                        </p>
+                        </div>
+                      ) : null}
+                      <div className="mb-4 space-y-2 border-b border-slate-100 pb-4 text-sm text-slate-600">
+                        <p className="flex min-w-0 items-center gap-2 break-all"><Mail className="h-4 w-4 shrink-0 text-slate-400" />{user.email || 'Email не указан'}</p>
+                        <p className="flex min-w-0 items-center gap-2 break-all"><Phone className="h-4 w-4 shrink-0 text-slate-400" />{user.phone ? <a href={`tel:${user.phone}`} className="hover:underline">{user.phone}</a> : 'Телефон не указан'}</p>
+                        <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                          <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1">ID</span>
+                          <span className="min-w-0 break-all font-mono">{user.id}</span>
+                          <button type="button" className="rounded p-1 hover:bg-slate-100" title="Копировать ID" aria-label="Копировать ID курсанта" onClick={() => { void navigator.clipboard.writeText(user.id).then(() => setToastMessage('ID скопирован')).catch(() => setToastMessage('Не удалось скопировать ID')) }}><Copy className="h-4 w-4" /></button>
+                        </div>
                       </div>
 
                       {editing === user.id ? (
