@@ -34,7 +34,9 @@ def token(role):
  sig=base64.urlsafe_b64encode(hmac.new(secret.encode(),body.encode(),hashlib.sha256).digest()).rstrip(b'=').decode()
  return body+'.'+sig
 p=pathlib.Path(sys.argv[1])
-p.write_text(f'TEST_POSTGRES_PASSWORD={password}\nTEST_JWT_SECRET={secret}\nTEST_ANON_KEY={token("anon")}\nTEST_SERVICE_ROLE_KEY={token("service_role")}\n')
+# TEST_REALTIME_ENC_KEY строго 16 байт: realtime шифрует JWT-секрет тенанта
+# через AES-128-ECB и падает с "Bad key size" при другой длине.
+p.write_text(f'TEST_POSTGRES_PASSWORD={password}\nTEST_JWT_SECRET={secret}\nTEST_REALTIME_ENC_KEY={secrets.token_hex(8)}\nTEST_SECRET_KEY_BASE={secrets.token_urlsafe(64)}\nTEST_ANON_KEY={token("anon")}\nTEST_SERVICE_ROLE_KEY={token("service_role")}\n')
 p.chmod(0o600)
 PY
 dc(){ env -i PATH="$PATH" HOME="$HOME" docker compose --project-name "$PROJECT" --env-file "$ENVFILE" -f "$COMPOSE" "$@"; }
@@ -136,11 +138,20 @@ FROM auth.users u
 WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id);
 SQL
 test "$(sql "select count(*) from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal")" = 1 || fail 'Profile trigger missing'
+# Realtime шифрует JWT-секрет тенанта AES-128-ECB: ключ строго 16 байт.
+# Схема _realtime создаётся до старта realtime (мигратору нужна для
+# schema_migrations, образ её сам не создаёт).
+docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres <<'SQL'
+CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION supabase_admin;
+-- CDC postgres_changes читает публикацию supabase_realtime; без таблиц
+-- в ней подписки регистрируются, но события не приходят.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+SQL
 # Outbound mail is impossible: SMTP points at internal mailpit, network is internal-only.
 echo 'Starting localhost-only Auth, REST, Mailpit and port proxies'
 dc up -d
 # A running container alone is not evidence that the API works.
-for service in auth rest storage gateway; do
+for service in auth rest storage gateway realtime; do
   container=$(dc ps -q "$service")
   test -n "$container" || fail "Missing container for $service"
   test "$(docker inspect "$container" --format '{{.State.Running}}')" = true || fail "$service exited"
