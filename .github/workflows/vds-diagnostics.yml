@@ -48,12 +48,17 @@ jobs:
           free -h
           printf '%s\n' '=== DISK ==='
           df -h /
-          printf '%s\n' '=== CONTAINERS ==='
-          docker ps --format 'table {{.Names}}\t{{.Status}}'
-          printf '%s\n' '=== RESTART COUNTS ==='
-          docker ps -aq --filter 'name=supabase' --filter 'name=realtime-dev' | xargs -r docker inspect -f '{{.Name}} restarts={{.RestartCount}} state={{.State.Status}}'
-          printf '%s\n' '=== TEST RESTORE CONTAINER ==='
-          docker ps -a --filter name=supabase-restore-db --format 'table {{.Names}}\t{{.Status}}'
+          printf '%s\n' '=== DOCKER ACCESS ==='
+          if docker info --format '{{.ServerVersion}}' >/dev/null 2>&1; then
+            printf '%s\n' '=== CONTAINERS ==='
+            docker ps --format 'table {{.Names}}\t{{.Status}}'
+            printf '%s\n' '=== RESTART COUNTS ==='
+            docker ps -aq --filter 'name=supabase' --filter 'name=realtime-dev' | xargs -r docker inspect -f '{{.Name}} restarts={{.RestartCount}} state={{.State.Status}}'
+            printf '%s\n' '=== TEST RESTORE CONTAINER ==='
+            docker ps -a --filter name=supabase-restore-db --format 'table {{.Names}}\t{{.Status}}'
+          else
+            echo 'Docker: access denied for SSH user. Container checks skipped. No permission changes made.'
+          fi
           printf '%s\n' '=== STORAGE HEALTH ==='
           curl -sS -o /dev/null --max-time 10 -w 'Storage HTTP %{http_code}\n' https://supabase.dvizh-school.ru/storage/v1/status
           REMOTE
