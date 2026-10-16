@@ -12,6 +12,7 @@ fail(){ echo "BLOCKED: $*" >&2; exit 1; }
 test "$(id -u)" = 0 || fail 'Must run as root'
 test -f "$COMPOSE" || fail 'Install reviewed compose.yml first'
 test "$(stat -c %a "$COMPOSE")" != 777 || fail 'Insecure compose file permissions'
+test -f "$ROOT/storage-buckets.sql" || fail 'Install reviewed storage-buckets.sql first'
 test -r /opt/backups/supabase/cloud-backup.dump || fail 'Archive missing'
 test "$(docker inspect "$LAB" --format '{{.HostConfig.NetworkMode}}')" = none || fail 'Lab network changed'
 test "$(docker exec "$LAB" psql -X -U supabase_admin -d postgres -Atc 'select count(*) from auth.users')" = 0 || fail 'Lab has users'
@@ -53,12 +54,13 @@ done
 sql(){ docker exec "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -Atc "$1"; }
 test "$(sql 'select count(*) from auth.users')" = 0 || fail 'Unexpected users in empty test DB'
 # Supabase bootstrap does not automatically set the generated password on
-# authenticator and supabase_auth_admin; without this GoTrue/PostgREST fail.
+# authenticator, supabase_auth_admin and supabase_storage_admin; without this
+# GoTrue/PostgREST/Storage fail to connect.
 # Never print this value; it is hex generated in our private env file.
 TEST_DB_PASSWORD=$(sed -n 's/^TEST_POSTGRES_PASSWORD=//p' "$ENVFILE")
 [[ "$TEST_DB_PASSWORD" =~ ^[0-9a-f]{48}$ ]] || fail 'Invalid test DB password format'
-printf "ALTER ROLE authenticator WITH PASSWORD '%s';\\nALTER ROLE supabase_auth_admin WITH PASSWORD '%s';\\n" \
-  "$TEST_DB_PASSWORD" "$TEST_DB_PASSWORD" | \
+printf "ALTER ROLE authenticator WITH PASSWORD '%s';\\nALTER ROLE supabase_auth_admin WITH PASSWORD '%s';\\nALTER ROLE supabase_storage_admin WITH PASSWORD '%s';\\n" \
+  "$TEST_DB_PASSWORD" "$TEST_DB_PASSWORD" "$TEST_DB_PASSWORD" | \
   docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres >/dev/null
 unset TEST_DB_PASSWORD
 echo 'Loading public DDL ONLY from local backup'
@@ -138,13 +140,26 @@ test "$(sql "select count(*) from pg_trigger where tgrelid='auth.users'::regclas
 echo 'Starting localhost-only Auth, REST, Mailpit and port proxies'
 dc up -d
 # A running container alone is not evidence that the API works.
-for service in auth rest; do
+for service in auth rest storage gateway; do
   container=$(dc ps -q "$service")
   test -n "$container" || fail "Missing container for $service"
   test "$(docker inspect "$container" --format '{{.State.Running}}')" = true || fail "$service exited"
 done
+# Storage migrates its schema on first start; buckets SQL must run after that.
+storage_ready=0
+for _ in $(seq 1 60); do
+  if curl -sf -o /dev/null http://127.0.0.1:28000/storage/v1/status; then storage_ready=1; break; fi
+  sleep 2
+done
+(( storage_ready == 1 )) || fail 'Storage API did not become ready'
+echo 'Creating storage buckets and policies'
+docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  < "$ROOT/storage-buckets.sql" >/dev/null
+test "$(sql "select count(*) from storage.buckets")" = 3 || fail 'Bucket count mismatch'
+test "$(sql "select count(*) from pg_policies where schemaname='storage'")" = 6 || fail 'Storage policy count mismatch'
 echo '=== SERVICE STATUS ==='
 dc ps
-echo 'Auth: http://127.0.0.1:19999/health ; REST: http://127.0.0.1:18080/ ; Mailpit UI: http://127.0.0.1:18025/'
+echo 'Gateway: http://127.0.0.1:28000/ (auth/v1, rest/v1, storage/v1)'
+echo 'Mailpit UI: http://127.0.0.1:18025/'
 echo 'Test keys are stored locally in root-only .env; NEVER paste them into chat.'
-echo 'No public web gateway, Storage API or PWA installed. Do not point production here.'
+echo 'No public HTTPS gateway or PWA installed. Do not point production here.'

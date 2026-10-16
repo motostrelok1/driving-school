@@ -2,10 +2,10 @@
 
 Данный этап добавляет **новый** Docker Compose project `driving-school-supabase-test` с отдельным PostgreSQL volume, Auth и PostgREST. Снимок /opt/backups/supabase/cloud-backup.dump используется **исключительно для восстановления схемы public** без TABLE DATA. Тестовый Postgres с новыми секретами не подключается к `supabase-db` и не открывает порт БД на хосте.
 
-- Auth: `127.0.0.1:19999`; PostgREST: `127.0.0.1:18080`; Mailpit UI: `127.0.0.1:18025`.
+- Единый gateway: `127.0.0.1:28000` (маршруты `/auth/v1`, `/rest/v1`, `/storage/v1`); прямые endpoint: Auth `127.0.0.1:19999`, PostgREST `127.0.0.1:18080`, Mailpit UI `127.0.0.1:18025`.
 - Оба endpoint доступны только с VDS или через SSH tunnel. Внешний HTTPS не настроен.
 - JWT/пароли генерируются локально и хранятся в root-only `/opt/driving-school-supabase-test/.env`; **не публикуйте их**.
-- Не включены: Storage, Envoy gateway, Realtime, Edge Functions, cron, OneSignal и тестовый frontend.
+- Не включены: HTTPS-поддомен, Realtime, Edge Functions, cron, OneSignal и тестовый frontend.
 - Миграция прикладных прав не доказывается совпадением SQL объектов; требуются Auth login и проверки RLS через HTTP прежде чем открывать доступ.
 
 ## Что изменилось после первого рабочего запуска
@@ -16,7 +16,11 @@
 4. **Регрессионный тест auth-потоков** — `scripts/supabase-test-auth-flows.sh`. Прогоняет на живом стеке: signup → строка профиля с ФИО/телефоном/ролью, login/refresh/logout, отказ при неверном пароле, сброс пароля через письмо mailpit (`/recover` → `token_hash` из письма → `/verify` → смена пароля → повторный вход, старый пароль отклонён). Создаёт одного случайного тестового пользователя за прогон, не трогает production-контейнеры.
 5. **Регрессионный тест ролей и RLS** — `scripts/supabase-test-rls-roles.sh`. Создаёт 4 случайных пользователя (admin/instructor/2 ученика), раскладывает роли как admin workflow (первый админ — через `session_replication_role=replica`, т.к. триггер `prevent_unauthorized_role_change` не пропускает даже service_role) и через PostgREST с реальными JWT проверяет 20 утверждений: ученик читает только свой профиль (инструкторы намеренно видны всем authenticated — выбор инструктора), не меняет чужие данные и не может назначить себе роль; инструктор видит только своих учеников; админ читает всё, управляет группами и ролями. JWT-роль всех пользователей — `authenticated`, прикладные роли живут в `public.profiles.role` и проверяются через `is_admin(auth.uid())`.
 
-**Проверено на живом стеке (2026-10-16)**: `supabase-test-auth-flows.sh` и `supabase-test-rls-roles.sh` — все проверки зелёные. Подводный камень при ручных проверках: значения из root-only `.env` нужно читать с `.strip()` — хвостовой `\n` в заголовке `apikey` молча ломает авторизационный контекст PostgREST (0 строк вместо данных).
+6. **Storage API и единый gateway.** Сервис `storage` (supabase/storage-api:v1.74.0, backend `file`, volume `test_storage_data`) живёт только в `test_internal`; `JWT_SECRET`/`PGRST_JWT_SECRET` — тестовый секрет, ключи — из root-only `.env`. Перед стартом storage установщик задаёт пароль роли `supabase_storage_admin` (тот же паттерн, что и для `authenticator`/`supabase_auth_admin`). Бакеты и политики создаются из `docker/test-supabase/storage-buckets.sql` (установщик ждёт готовности `/storage/v1/status` через gateway, т.к. storage-api мигрирует схему `storage` при первом старте): `avatars` и `lesson-media` — public, `student-documents` — private; 6 политик на `storage.objects`. Важно: колонка `owner` имеет тип uuid, в политиках используется `owner = auth.uid()` (каст `auth.uid()::text` даёт ошибку типа).
+7. **Единая точка входа `gateway`** (nginx:alpine) маршрутизирует `/auth/v1/` → GoTrue:9999, `/rest/v1/` → PostgREST:3000, `/storage/v1/` → Storage:5000; `proxy_pass` с завершающим `/` срезает префикс, как Envoy в production-стеке. CORS повторяет production (`map $http_origin`, `Access-Control-Allow-*`, отдельный блок для OPTIONS: `add_header` внутри `if` отменяет наследование серверных заголовков, поэтому ACAO продублирован внутри блока — иначе preflight уходит без ACAO). Наружу gateway выставляет только socat-прокси `gateway-local` на `127.0.0.1:28000`.
+8. **Регрессионный тест Storage** — `scripts/supabase-test-storage.sh`. Через gateway с реальными JWT двух учеников проверяет 13 утверждений: anon читает public-бакеты и не читает private, authenticated владеет только своими объектами (upload/read/update/delete), чужие private и public-объекты не удаляются, service_role обходит политики. Случайный суффикс имён не даёт пересечениям при повторных прогонах. Проверено на живом стеке (2026-10-16): 13/13 PASS.
+
+**Проверено на живом стеке (2026-10-16)**: `supabase-test-auth-flows.sh`, `supabase-test-rls-roles.sh`, `supabase-test-rls-data.sh` и `supabase-test-storage.sh` — все проверки зелёные. Подводный камень при ручных проверках: значения из root-only `.env` нужно читать с `.strip()` — хвостовой `\n` в заголовке `apikey` молча ломает авторизационный контекст PostgREST (0 строк вместо данных).
 
 ## Установка и контроль
 
@@ -24,6 +28,6 @@
 
 Проверить отдельно `docker compose config` с test env до запуска. Не копировать рабочий `.env`.
 
-Перед установкой желательно посмотреть, что сервисы используют только новые ресурсы и локальные порты. Не менять production Nginx/Compose. После запуска проверить ответы API и отрицательные RLS сценарии; затем отдельным PR добавить Storage и gateway.
+Перед установкой желательно посмотреть, что сервисы используют только новые ресурсы и локальные порты. Не менять production Nginx/Compose. После запуска проверить ответы API, storage-сценарии и отрицательные RLS сценарии.
 
 **Изоляция:** Docker network `internal: true` запрещает прямой внешний маршрут из test services, но Docker-группе и хостовому root доверяется полный доступ; это не криптографическая граница. Пользовательские записи из cloud архивов не импортируются.
