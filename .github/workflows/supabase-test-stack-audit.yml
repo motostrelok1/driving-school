@@ -1,0 +1,22 @@
+name: Проверка инвентаризации test API
+on:
+  pull_request:
+    paths:
+      - scripts/supabase-test-stack-audit.sh
+      - .github/workflows/supabase-test-stack-audit.yml
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash -n scripts/supabase-test-stack-audit.sh
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('scripts/supabase-test-stack-audit.sh').read_text()
+          for token in ['docker run','docker rm','docker network connect','ALTER TABLE','GRANT ','DROP TABLE','.Config.Env','POSTGRES_PASSWORD','JWT_SECRET']:
+              assert token not in s, token
+          print('read-only inspection accepted')
+          PY
