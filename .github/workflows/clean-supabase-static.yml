@@ -1,0 +1,27 @@
+name: Проверка чистой тестовой Supabase
+on:
+  pull_request:
+    paths:
+      - scripts/create-clean-supabase-test-db.sh
+      - .github/workflows/clean-supabase-static.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Bash синтаксис
+        run: bash -n scripts/create-clean-supabase-test-db.sh
+      - name: Безопасность и изоляция
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('scripts/create-clean-supabase-test-db.sh').read_text()
+          for token in ['--network none', '--pull never', '--no-owner', '--no-acl', '--section=pre-data', '--section=post-data', '--single-transaction', '--exit-on-error']:
+              assert token in s, token
+          for token in ['--data-only', 'docker volume rm', 'docker compose down', '--network host', '--privileged']:
+              assert token not in s, token
+          print('Static checks passed; no server contacted')
+          PY
