@@ -52,6 +52,15 @@ done
 (( boot == 1 )) || fail 'Bootstrap timeout'
 sql(){ docker exec "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -Atc "$1"; }
 test "$(sql 'select count(*) from auth.users')" = 0 || fail 'Unexpected users in empty test DB'
+# Supabase bootstrap does not automatically set the generated password on
+# authenticator and supabase_auth_admin; without this GoTrue/PostgREST fail.
+# Never print this value; it is hex generated in our private env file.
+TEST_DB_PASSWORD=$(sed -n 's/^TEST_POSTGRES_PASSWORD=//p' "$ENVFILE")
+[[ "$TEST_DB_PASSWORD" =~ ^[0-9a-f]{48}$ ]] || fail 'Invalid test DB password format'
+printf "ALTER ROLE authenticator WITH PASSWORD '%s';\\nALTER ROLE supabase_auth_admin WITH PASSWORD '%s';\\n" \
+  "$TEST_DB_PASSWORD" "$TEST_DB_PASSWORD" | \
+  docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres >/dev/null
+unset TEST_DB_PASSWORD
 echo 'Loading public DDL ONLY from local backup'
 docker exec "$DBCONTAINER" sh -eu -c '
  pg_restore -l /backup/cloud-backup.dump | sed -E "/^[0-9]+; [0-9]+ [0-9]+ SCHEMA - public /d" > /tmp/public-schema.toc
@@ -64,9 +73,70 @@ done
 test "$(sql "select count(*) from pg_tables where schemaname='public'")" = 30 || fail 'Table count mismatch'
 test "$(sql "select count(*) from pg_policies where schemaname='public'")" = 60 || fail 'Policy count mismatch'
 test "$(sql 'select count(*) from auth.users')" = 0 || fail 'Unexpected imported users'
-# No external SMTP/push/cron integration is configured in this test stack.
-echo 'Starting localhost-only Auth and REST'
-dc up -d auth rest
+echo 'Installing profile auto-creation trigger (not present in public-only DDL restore)'
+docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres <<'SQL'
+-- Функция собирает ФИО из метаданных регистрации и сохраняет телефон.
+-- Роль жёстко 'student': повысить роль через метаданные signup нельзя.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  INSERT INTO public.profiles (id, role, full_name, phone, email)
+  VALUES (
+    NEW.id,
+    'student',
+    COALESCE(
+      NULLIF(trim(concat_ws(' ',
+        NEW.raw_user_meta_data->>'last_name',
+        NEW.raw_user_meta_data->>'first_name',
+        COALESCE(NEW.raw_user_meta_data->>'middle_name', NEW.raw_user_meta_data->>'patronymic')
+      )), ''),
+      NEW.raw_user_meta_data->>'full_name',
+      ''
+    ),
+    NEW.raw_user_meta_data->>'phone',
+    NEW.email
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    phone = EXCLUDED.phone,
+    email = EXCLUDED.email,
+    updated_at = now();
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Догнать пользователей, созданных до появления триггера
+INSERT INTO public.profiles (id, role, full_name, phone, email)
+SELECT
+  u.id,
+  'student',
+  COALESCE(
+    NULLIF(trim(concat_ws(' ',
+      u.raw_user_meta_data->>'last_name',
+      u.raw_user_meta_data->>'first_name',
+      COALESCE(u.raw_user_meta_data->>'middle_name', u.raw_user_meta_data->>'patronymic')
+    )), ''),
+    u.raw_user_meta_data->>'full_name',
+    ''
+  ),
+  u.raw_user_meta_data->>'phone',
+  u.email
+FROM auth.users u
+WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id);
+SQL
+test "$(sql "select count(*) from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal")" = 1 || fail 'Profile trigger missing'
+# Outbound mail is impossible: SMTP points at internal mailpit, network is internal-only.
+echo 'Starting localhost-only Auth, REST, Mailpit and port proxies'
+dc up -d
 # A running container alone is not evidence that the API works.
 for service in auth rest; do
   container=$(dc ps -q "$service")
@@ -75,6 +145,6 @@ for service in auth rest; do
 done
 echo '=== SERVICE STATUS ==='
 dc ps
-echo 'Auth: http://127.0.0.1:19999/health ; REST: http://127.0.0.1:18080/'
+echo 'Auth: http://127.0.0.1:19999/health ; REST: http://127.0.0.1:18080/ ; Mailpit UI: http://127.0.0.1:18025/'
 echo 'Test keys are stored locally in root-only .env; NEVER paste them into chat.'
 echo 'No public web gateway, Storage API or PWA installed. Do not point production here.'
