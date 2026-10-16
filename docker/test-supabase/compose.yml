@@ -88,9 +88,51 @@ services:
       - "127.0.0.1:18025:8025"
     networks: [test_internal, test_edge]
     security_opt: [no-new-privileges:true]
+  storage:
+    image: supabase/storage-api:v1.74.0
+    restart: "no"
+    depends_on: [db, rest]
+    environment:
+      ANON_KEY: ${TEST_ANON_KEY:?required}
+      SERVICE_KEY: ${TEST_SERVICE_ROLE_KEY:?required}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      DATABASE_URL: postgres://supabase_storage_admin:${TEST_POSTGRES_PASSWORD:?required}@db:5432/postgres
+      FILE_SIZE_LIMIT: "52428800"
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
+    volumes:
+      - test_storage_data:/var/lib/storage
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+  # Единая точка входа: /auth/v1 → GoTrue, /rest/v1 → PostgREST,
+  # /storage/v1 → Storage API (префиксы срезаются, как в Envoy production-стека).
+  gateway:
+    image: nginx:alpine
+    restart: "no"
+    depends_on: [auth, rest, storage]
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
+  gateway-local:
+    image: alpine/socat:latest
+    restart: "no"
+    command: TCP-LISTEN:8080,fork,reuseaddr TCP:gateway:8080
+    ports:
+      - "127.0.0.1:28000:8080"
+    networks: [test_internal, test_edge]
+    security_opt: [no-new-privileges:true]
 networks:
   test_internal:
     internal: true
   test_edge: {}
 volumes:
   test_postgres_data:
+  test_storage_data:
