@@ -13,6 +13,7 @@ test "$(id -u)" = 0 || fail 'Must run as root'
 test -f "$COMPOSE" || fail 'Install reviewed compose.yml first'
 test "$(stat -c %a "$COMPOSE")" != 777 || fail 'Insecure compose file permissions'
 test -f "$ROOT/storage-buckets.sql" || fail 'Install reviewed storage-buckets.sql first'
+test -f "$ROOT/app-schema-catchup.sql" || fail 'Install reviewed app-schema-catchup.sql first'
 test -r /opt/backups/supabase/cloud-backup.dump || fail 'Archive missing'
 test "$(docker inspect "$LAB" --format '{{.HostConfig.NetworkMode}}')" = none || fail 'Lab network changed'
 test "$(docker exec "$LAB" psql -X -U supabase_admin -d postgres -Atc 'select count(*) from auth.users')" = 0 || fail 'Lab has users'
@@ -168,6 +169,12 @@ docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d po
   < "$ROOT/storage-buckets.sql" >/dev/null
 test "$(sql "select count(*) from storage.buckets")" = 3 || fail 'Bucket count mismatch'
 test "$(sql "select count(*) from pg_policies where schemaname='storage'")" = 8 || fail 'Storage policy count mismatch'
+# Cloud-backup lags repo migrations; catch up the app schema (idempotent).
+echo 'Applying app schema catch-up'
+docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  < "$ROOT/app-schema-catchup.sql" >/dev/null
+test "$(sql "select count(*) from pg_tables where schemaname='public' and tablename in ('theory_question_bank','driving_lesson_reviews')")" = 2 \
+  || fail 'App schema catch-up mismatch'
 echo '=== SERVICE STATUS ==='
 dc ps
 echo 'Gateway: http://127.0.0.1:28000/ (auth/v1, rest/v1, storage/v1)'
