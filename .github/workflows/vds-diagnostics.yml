@@ -1,0 +1,59 @@
+name: VDS — безопасная диагностика
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vds-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  diagnostics:
+    name: Проверка сервера (только чтение)
+    if: ${{ vars.VDS_DIAGNOSTICS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Настройка SSH
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS" || { echo "Missing SSH configuration"; exit 1; }
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Состояние Ubuntu, Supabase и тестовой базы
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 "$DEPLOY_USER@$DEPLOY_HOST" 'bash -se' <<'REMOTE'
+          set -eu
+          printf '%s\n' '=== UPTIME ==='
+          uptime -p
+          printf '%s\n' '=== RAM ==='
+          free -h
+          printf '%s\n' '=== DISK ==='
+          df -h /
+          printf '%s\n' '=== CONTAINERS ==='
+          docker ps --format 'table {{.Names}}\t{{.Status}}'
+          printf '%s\n' '=== RESTART COUNTS ==='
+          docker ps -aq --filter 'name=supabase' --filter 'name=realtime-dev' | xargs -r docker inspect -f '{{.Name}} restarts={{.RestartCount}} state={{.State.Status}}'
+          printf '%s\n' '=== TEST RESTORE CONTAINER ==='
+          docker ps -a --filter name=supabase-restore-db --format 'table {{.Names}}\t{{.Status}}'
+          printf '%s\n' '=== STORAGE HEALTH ==='
+          curl -sS -o /dev/null --max-time 10 -w 'Storage HTTP %{http_code}\n' https://supabase.dvizh-school.ru/storage/v1/status
+          REMOTE
