@@ -111,12 +111,39 @@ services:
       - test_storage_data:/var/lib/storage
     networks: [test_internal]
     security_opt: [no-new-privileges:true]
+  # Realtime: события БД через WebSocket. Tenant seed'ится сам (SEED_SELF_HOST).
+  realtime:
+    image: supabase/realtime:v2.134.10
+    restart: "no"
+    depends_on: [db]
+    environment:
+      PORT: "4000"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${TEST_POSTGRES_PASSWORD:?required}
+      DB_NAME: postgres
+      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
+      DB_ENC_KEY: ${TEST_REALTIME_ENC_KEY:?required}
+      API_JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      API_JWT_JWKS: '{"keys":[]}'
+      SECRET_KEY_BASE: ${TEST_SECRET_KEY_BASE:?required}
+      METRICS_JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      DNS_NODES: "''"
+      RLIMIT_NOFILE: "10000"
+      APP_NAME: realtime
+      SEED_SELF_HOST: "true"
+      RUN_JANITOR: "true"
+      DISABLE_HEALTHCHECK_LOGGING: "true"
+    networks: [test_internal]
+    security_opt: [no-new-privileges:true]
   # Единая точка входа: /auth/v1 → GoTrue, /rest/v1 → PostgREST,
-  # /storage/v1 → Storage API (префиксы срезаются, как в Envoy production-стека).
+  # /storage/v1 → Storage API, /realtime/v1 → Realtime (WebSocket upgrade).
   gateway:
     image: nginx:alpine
     restart: "no"
-    depends_on: [auth, rest, storage]
+    depends_on: [auth, rest, storage, realtime]
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [test_internal]
