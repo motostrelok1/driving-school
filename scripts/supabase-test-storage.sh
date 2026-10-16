@@ -56,9 +56,8 @@ def storage(method, path, token=None, data=None, extra=None):
         args += extra
     args.append(GW + "/storage/v1" + path)
     r = subprocess.run(args, input=data, text=False, capture_output=True)
-    out = r.stdout.decode(errors="replace")
-    body, _, st = out.rpartition("\n")
-    return body, st
+    body, _, st = r.stdout.rpartition(b"\n")
+    return body, st.decode("ascii", errors="replace")
 
 def signup(email):
     pw = secrets.token_urlsafe(24)
@@ -98,16 +97,16 @@ check("ученик B НЕ читает чужой приватный объек
 _, st = storage("GET", f"/object/authenticated/{priv_obj}")
 check("аноним НЕ читает приватный объект", st.startswith("4"), f"st={st}")
 body, st = storage("GET", f"/object/authenticated/{priv_obj}", SERVICE)
-check("service_role читает приватный объект (обход RLS по дизайну)", st == "200" and body.encode("latin-1", "replace") != "", f"st={st}")
+check("service_role читает приватный объект (обход RLS по дизайну)", st == "200" and len(body) > 0, f"st={st}")
 
 print("=== ОБНОВЛЕНИЕ ===")
 # update() в supabase-js — это PUT /object/{bucket}/{path} (StorageFileApi.uploadOrUpdate)
 _, st = storage("PUT", f"/object/{pub_obj}", tokA, PNG2)
 body, st2 = storage("GET", f"/object/public/{pub_obj}")
-check("владелец обновляет свой объект", st.startswith("2") and st2 == "200" and len(body) > 0 and body.encode("latin-1", "replace") != PNG.decode("latin-1", "replace"), f"st={st}, get={st2}")
+check("владелец обновляет свой объект", st.startswith("2") and st2 == "200" and body == PNG2, f"st={st}, get={st2}")
 _, st = storage("PUT", f"/object/{pub_obj}", tokB, PNG)
 body, st2 = storage("GET", f"/object/public/{pub_obj}")
-check("ученик B НЕ обновляет чужой объект", not st.startswith("2") and st2 == "200" and body.encode("latin-1", "replace") != PNG.decode("latin-1", "replace"), f"st={st}, get={st2}")
+check("ученик B НЕ обновляет чужой объект", not st.startswith("2") and st2 == "200" and body == PNG2, f"st={st}, get={st2}")
 
 print("=== УДАЛЕНИЕ ===")
 _, st = storage("DELETE", f"/object/{priv_obj}", tokB)
