@@ -20,6 +20,15 @@ docker container inspect supabase-db >/dev/null 2>&1 || die 'Production containe
 docker container inspect "$SMOKE" >/dev/null 2>&1 || die 'Previous smoke test is missing'
 if docker container inspect "$CONTAINER" >/dev/null 2>&1; then die 'Lab container already exists'; fi
 if docker volume inspect "$VOLUME" >/dev/null 2>&1; then die 'Lab volume already exists'; fi
+# Fail closed while the full Supabase dependency graph is not validated.
+# A backup can contain functions, triggers and extension commands whose execution
+# is not safe merely because the destination container has no network.
+echo '=== FULL RESTORE SAFETY GATE ==='
+echo 'BLOCKED: Auth/public/full-schema restore requires verified bootstrap,'
+echo 'extension allowlist, grants, TOC selection, and trigger/function review.'
+echo 'No lab containers or volumes have been created by this run.'
+exit 3
+
 echo 'Preconditions passed. Creating unique lab resources only.'
 docker volume create "$VOLUME" >/dev/null
 # Empty init folder disables official migrations to prevent live network jobs or background schedulers.
