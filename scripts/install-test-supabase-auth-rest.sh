@@ -52,6 +52,15 @@ done
 (( boot == 1 )) || fail 'Bootstrap timeout'
 sql(){ docker exec "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -Atc "$1"; }
 test "$(sql 'select count(*) from auth.users')" = 0 || fail 'Unexpected users in empty test DB'
+# Supabase bootstrap does not automatically set the generated password on
+# authenticator and supabase_auth_admin; without this GoTrue/PostgREST fail.
+# Never print this value; it is hex generated in our private env file.
+TEST_DB_PASSWORD=$(sed -n 's/^TEST_POSTGRES_PASSWORD=//p' "$ENVFILE")
+[[ "$TEST_DB_PASSWORD" =~ ^[0-9a-f]{48}$ ]] || fail 'Invalid test DB password format'
+printf "ALTER ROLE authenticator WITH PASSWORD '%s';\\nALTER ROLE supabase_auth_admin WITH PASSWORD '%s';\\n" \
+  "$TEST_DB_PASSWORD" "$TEST_DB_PASSWORD" | \
+  docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres >/dev/null
+unset TEST_DB_PASSWORD
 echo 'Loading public DDL ONLY from local backup'
 docker exec "$DBCONTAINER" sh -eu -c '
  pg_restore -l /backup/cloud-backup.dump | sed -E "/^[0-9]+; [0-9]+ [0-9]+ SCHEMA - public /d" > /tmp/public-schema.toc
