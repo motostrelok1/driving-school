@@ -117,3 +117,13 @@ src/
 
 - [Issue #172](https://github.com/motostrelok1/driving-school/issues/172) — редизайн списка учеников администратора: раскрытая карточка по утверждаемому макету, прогресс теории/вождения, здоровье/скоринг, проблемы и быстрые действия.
 - [Спецификация](docs/ADMIN_STUDENT_EXPANDED_CARD_SPEC.md). Статус: запланировано; реализация не начата.
+
+## Актуальный статус и план (16.10.2026)
+
+- [Сводка реализованного и запланированного по рабочему чату](docs/CHAT_ROADMAP_2026-10-16.md) — источник текущего статуса PR/Issues, приоритетов и ограничений.
+- [#172](https://github.com/motostrelok1/driving-school/issues/172): раскрытая админ-карточка **частично реализована** (PR #174/#178 merged); теория в PR #180 ожидает миграцию; скоринг впереди. Это уточняет более раннюю отметку «не начато» выше.
+- [#160](https://github.com/motostrelok1/driving-school/issues/160): недельная сетка готова, push по 3+ свободным слотам раз в час — впереди.
+- [#170](https://github.com/motostrelok1/driving-school/issues/170): аудит производительности запланирован; спецификация в [PR #171](https://github.com/motostrelok1/driving-school/pull/171), пока не merged.
+- [#167](https://github.com/motostrelok1/driving-school/issues/167): Tiptap описан, код редактора пока не внедрён.
+
+**Фактическое размещение PWA:** `dvizh-school.ru` на собственном сервере с GitHub Actions auto-deploy. Раздел «Деплой на Vercel» выше является устаревшей первоначальной инструкцией и не описывает текущий production. Отдельные сайты `edu.dvizh-school.ru` и `lms.dvizh-school.ru` этим репозиторием не затрагиваются.
