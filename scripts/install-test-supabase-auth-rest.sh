@@ -11,6 +11,7 @@ readonly ENVFILE="$ROOT/.env"
 fail(){ echo "BLOCKED: $*" >&2; exit 1; }
 test "$(id -u)" = 0 || fail 'Must run as root'
 test -f "$COMPOSE" || fail 'Install reviewed compose.yml first'
+test "$(stat -c %a "$COMPOSE")" != 777 || fail 'Insecure compose file permissions'
 test -r /opt/backups/supabase/cloud-backup.dump || fail 'Archive missing'
 test "$(docker inspect "$LAB" --format '{{.HostConfig.NetworkMode}}')" = none || fail 'Lab network changed'
 test "$(docker exec "$LAB" psql -X -U supabase_admin -d postgres -Atc 'select count(*) from auth.users')" = 0 || fail 'Lab has users'
@@ -36,6 +37,8 @@ p.write_text(f'TEST_POSTGRES_PASSWORD={password}\nTEST_JWT_SECRET={secret}\nTEST
 p.chmod(0o600)
 PY
 dc(){ env -i PATH="$PATH" HOME="$HOME" docker compose --project-name "$PROJECT" --env-file "$ENVFILE" -f "$COMPOSE" "$@"; }
+# Validate the rendered configuration privately; never print it (contains secrets).
+dc config --quiet || fail 'Docker Compose configuration invalid'
 echo 'Bootstrapping private test database, no host database ports'
 dc up -d db
 DBCONTAINER=$(dc ps -q db)
@@ -64,6 +67,12 @@ test "$(sql 'select count(*) from auth.users')" = 0 || fail 'Unexpected imported
 # No external SMTP/push/cron integration is configured in this test stack.
 echo 'Starting localhost-only Auth and REST'
 dc up -d auth rest
+# A running container alone is not evidence that the API works.
+for service in auth rest; do
+  container=$(dc ps -q "$service")
+  test -n "$container" || fail "Missing container for $service"
+  test "$(docker inspect "$container" --format '{{.State.Running}}')" = true || fail "$service exited"
+done
 echo '=== SERVICE STATUS ==='
 dc ps
 echo 'Auth: http://127.0.0.1:19999/health ; REST: http://127.0.0.1:18080/'
