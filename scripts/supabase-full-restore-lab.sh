@@ -1,82 +1,60 @@
 #!/usr/bin/env bash
-# Isolated full-restore experiment. Root-only, no parameters, never used on production.
-# IMPORTANT: This is a staged attempt; success requires comprehensive verification.
+# One-shot isolated full restore rehearsal. Never target any existing database.
 set -Eeuo pipefail
 umask 077
-if (( $# != 0 )); then echo 'Arguments forbidden' >&2; exit 2; fi
+(( $# == 0 )) || { echo 'No arguments permitted' >&2; exit 2; }
 readonly ARCHIVE=/opt/backups/supabase/cloud-backup.dump
-readonly CONTAINER=cloud-full-restore-lab-v1
-readonly VOLUME=cloud-full-restore-lab-data-v1
 readonly IMAGE=supabase/postgres:17.6.1.136
-readonly SMOKE=cloud-restore-smoke-v1
-readonly DB=restore_lab
-
-die() { echo "STOP: $*" >&2; exit 1; }
-echo '=== FULL RESTORE LAB — ISOLATED ONLY ==='
-test -f "$ARCHIVE" && test -s "$ARCHIVE" || die 'Archive missing'
-test "$(stat -c %a "$ARCHIVE")" = 600 || die 'Archive mode must be 600'
-docker image inspect "$IMAGE" >/dev/null 2>&1 || die 'Required image not locally available'
-docker container inspect supabase-db >/dev/null 2>&1 || die 'Production container name not found; refusing ambiguous environment'
-docker container inspect "$SMOKE" >/dev/null 2>&1 || die 'Previous smoke test is missing'
-if docker container inspect "$CONTAINER" >/dev/null 2>&1; then die 'Lab container already exists'; fi
-if docker volume inspect "$VOLUME" >/dev/null 2>&1; then die 'Lab volume already exists'; fi
-# Fail closed while the full Supabase dependency graph is not validated.
-# A backup can contain functions, triggers and extension commands whose execution
-# is not safe merely because the destination container has no network.
-echo '=== FULL RESTORE SAFETY GATE ==='
-echo 'BLOCKED: Auth/public/full-schema restore requires verified bootstrap,'
-echo 'extension allowlist, grants, TOC selection, and trigger/function review.'
-echo 'No lab containers or volumes have been created by this run.'
-exit 3
-
-echo 'Preconditions passed. Creating unique lab resources only.'
-docker volume create "$VOLUME" >/dev/null
-# Empty init folder disables official migrations to prevent live network jobs or background schedulers.
-# This stage bootstraps a clean PostgreSQL cluster and attempts the archive's own auth/public schema.
-readonly EMPTY_INIT=/opt/supabase/restore-empty-init
-test -d "$EMPTY_INIT" || die 'Empty init directory missing'
-test -z "$(find "$EMPTY_INIT" -mindepth 1 -maxdepth 1 -print -quit)" || die 'Init directory must be empty'
-docker run -d \
-  --name "$CONTAINER" --pull never --restart no \
-  --network none --memory 768m --cpus 1 --pids-limit 256 \
-  --cap-drop ALL --security-opt no-new-privileges \
-  -e POSTGRES_USER=postgres -e POSTGRES_DB="$DB" \
+readonly NAME=cloud-full-restore-rehearsal-v1
+readonly VOL=cloud-full-restore-rehearsal-data-v1
+readonly DB=postgres
+err() { printf 'FAILED at line %s. Isolated artifacts retained for inspection.\n' "$1" >&2; }
+trap 'err "$LINENO"' ERR
+echo '=== ISOLATED RESTORE REHEARSAL ==='
+test -f "$ARCHIVE" && test -s "$ARCHIVE"
+test "$(stat -c %a "$ARCHIVE")" = 600
+docker image inspect "$IMAGE" >/dev/null
+# Existing instances and volumes are never reused, removed or modified.
+if docker container inspect "$NAME" >/dev/null 2>&1 || docker volume inspect "$VOL" >/dev/null 2>&1; then
+  echo 'Fixed test container/volume name already exists — refusing to change it.' >&2; exit 2
+fi
+# The full Supabase bootstrap requires pg_cron/pg_net extensions. The isolated
+# container has no network and no published ports; it cannot reach production.
+# Do not attach a shared Docker network or run API/Edge services in this lab.
+docker volume create "$VOL" >/dev/null
+echo 'Initializing a fresh Supabase database with bundled migrations...'
+docker run -d --name "$NAME" --pull never --restart no \
+  --network none --memory 1024m --cpus 1 --pids-limit 256 \
+  --security-opt no-new-privileges \
+  -e POSTGRES_USER=supabase_admin -e POSTGRES_DB="$DB" \
   -e POSTGRES_PASSWORD="$(openssl rand -hex 32)" \
-  -v "$VOLUME:/var/lib/postgresql/data" \
+  -v "$VOL:/var/lib/postgresql/data" \
   -v "$ARCHIVE:/backup/cloud-backup.dump:ro" \
-  -v "$EMPTY_INIT:/docker-entrypoint-initdb.d:ro" \
-  "$IMAGE" postgres \
-     -c config_file=/etc/postgresql/postgresql.conf \
-     -c shared_preload_libraries=pg_stat_statements \
-     -c listen_addresses='' > /dev/null
+  "$IMAGE" postgres -D /etc/postgresql -c listen_addresses='' >/dev/null
+# pg_isready can become true before init scripts finish. Wait until the
+# bootstrap explicitly finishes (the entrypoint emits the completion marker).
 ready=0
-for i in $(seq 1 40); do
-  if docker exec "$CONTAINER" pg_isready -U postgres -d "$DB" >/dev/null 2>&1; then ready=1; break; fi
-  sleep 2
+for i in $(seq 1 120); do
+  if docker logs "$NAME" 2>&1 | grep -q 'PostgreSQL init process complete'; then ready=1; break; fi
+  if test "$(docker inspect "$NAME" --format '{{.State.Running}}')" != true; then
+    echo 'Container exited during bootstrap; examine local Docker logs' >&2; exit 1
+  fi
+  sleep 3
 done
-((ready == 1)) || die 'Lab postgres did not start; inspect container logs'
-
-echo '=== CREATE MINIMAL NONLOGIN ROLES REQUIRED FOR SCHEMA RESTORE ==='
-# These roles exist only inside the disposable lab. They are not credentials or network accounts.
-docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d "$DB" -c "
-DO \$\$ DECLARE r text; BEGIN
-  FOREACH r IN ARRAY ARRAY['anon','authenticated','service_role','authenticator',
-  'supabase_admin','supabase_auth_admin','supabase_storage_admin','supabase_realtime_admin',
-  'supabase_vault','supabase_functions_admin'] LOOP
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=r) THEN
-      EXECUTE format('CREATE ROLE %I NOLOGIN',r);
-    END IF;
-  END LOOP;
-END \$\$;"
-echo '=== RESTORE SCHEMAS: public, auth, extensions (schema+data) ==='
-echo 'NOTICE: PostgreSQL extension prerequisites and cross-schema ownership may prevent complete restore.'
-# No cron, net or storage tables restored; avoids data-driven notification schedules.
-# --exit-on-error ensures no partial result can be labelled SUCCESS.
-docker exec "$CONTAINER" pg_restore \
-  --exit-on-error --single-transaction --no-owner --no-acl \
-  --schema=public --schema=auth --schema=extensions \
-  -U postgres -d "$DB" /backup/cloud-backup.dump
-echo '=== RESTORED COUNTS (only reached if above succeeded) ==='
-docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d "$DB" -Atc "SELECT 'profiles='||count(*) FROM public.profiles UNION ALL SELECT 'auth_users='||count(*) FROM auth.users;"
-echo 'RESTORE COMMAND SUCCEEDED; AUTH/RLS/GRANTS/TRIGGERS/EXTENSIONS MUST STILL BE VALIDATED.'
-echo 'Lab artifacts retained. No production database changed.'
+(( ready == 1 )) || { echo 'Supabase bootstrap did not finish within 6 minutes' >&2; exit 1; }
+execsql() { docker exec "$NAME" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d "$DB" -Atc "$1"; }
+restore() { docker exec "$NAME" pg_restore --single-transaction --exit-on-error --no-owner --no-acl -U supabase_admin -d "$DB" "$@" /backup/cloud-backup.dump; }
+echo 'Restoring application public schema before user data...'
+restore --section=pre-data --schema=public
+echo 'Restoring Auth users and related Auth data into bootstrap-created tables...'
+restore --data-only --schema=auth
+echo 'Restoring application data...'
+restore --data-only --schema=public
+echo 'Restoring public constraints, indexes, triggers and RLS...'
+restore --section=post-data --schema=public
+echo '=== BASIC RESTORE ASSERTIONS ==='
+execsql "SELECT 'users='||count(*) FROM auth.users UNION ALL SELECT 'profiles='||count(*) FROM public.profiles;"
+execsql "SELECT 'public_tables='||count(*) FROM pg_tables WHERE schemaname='public';"
+execsql "SELECT 'public_policies='||count(*) FROM pg_policies WHERE schemaname='public';"
+echo 'The command completed. This is NOT proof of working login, ownership, grants or Storage.'
+echo 'DO NOT point any application at this laboratory cluster.'
