@@ -59,3 +59,11 @@
 - Tiptap #167: [спецификация](PDD_TIPTAP_EDITOR_SPEC.md), код редактора не внедрён.
 - Аудит SQL/Supabase #170: документационный [PR #171](https://github.com/motostrelok1/driving-school/pull/171) открыт; измерения/оптимизация не начаты.
 - PR #169 (Supabase CI/CD) и PR #181 (restore) ведутся другим тредом; не объединять из этого потока работ.
+
+## Новые планы и руководства — 17.10.2026
+
+- [Инструкция администратора](ADMINISTRATOR_USER_GUIDE.md) — текущие действия в кабинете, задачи, переписка, расписание, пользователи и тестирование.
+- [Деплой и настройка Driving School](DEPLOYMENT_AND_CONFIGURATION.md) — PWA, тестовый Supabase, SMTP, безопасность и проверки.
+- [Закрепление учеников и роль директора](ADMIN_DIRECTOR_STUDENT_ASSIGNMENT_SPEC.md) — запланировано, не реализовано.
+- [Push до подтверждения email](REGISTRATION_PRECONFIRM_PUSH_SPEC.md) — запланировано, не реализовано.
+- [PERF-1…4](PERFORMANCE_AUDIT_OPTIMIZATION_SPEC.md) — аудит и оптимизация SQL, Supabase, PWA; работы не начаты.
