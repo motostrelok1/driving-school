@@ -175,6 +175,13 @@ docker exec -i "$DBCONTAINER" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d po
   < "$ROOT/app-schema-catchup.sql" >/dev/null
 test "$(sql "select count(*) from pg_tables where schemaname='public' and tablename in ('theory_question_bank','driving_lesson_reviews')")" = 2 \
   || fail 'App schema catch-up mismatch'
+# Учебный контент (ПДД) не переносится DDL-restore (только структура):
+# зеркалим 5 таблиц контента курса из того же архива. Скрипт идемпотентен.
+test -f "$ROOT/import-test-course-content.sh" || fail 'Install reviewed import-test-course-content.sh first'
+echo 'Importing course content (mirror from archive)'
+bash "$ROOT/import-test-course-content.sh" >/dev/null
+test "$(sql "select count(*) from public.pdd_course_catalog")" -gt 0 || fail 'Course content import failed'
+test "$(sql "select count(*) from public.pdd_course_publications")" -gt 0 || fail 'Course publications missing'
 echo '=== SERVICE STATUS ==='
 dc ps
 echo 'Gateway: http://127.0.0.1:28000/ (auth/v1, rest/v1, storage/v1)'

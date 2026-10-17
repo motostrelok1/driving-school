@@ -71,7 +71,9 @@ admin = signup("admin")
 student = signup("student")
 admin_id, student_id = uid(admin), uid(student)
 sql(f"BEGIN; SET LOCAL session_replication_role='replica'; UPDATE public.profiles SET role='admin' WHERE id='{admin_id}'; COMMIT;")
-section = "s1"
+# Изолированная тестовая секция: не пересекается с реальными s1..s26 из импортированного курса.
+# publish_pdd_course_section валидирует формат custom_[0-9a-f]{32} для таких секций.
+section = "custom_" + secrets.token_hex(16)
 # Изоляция от предыдущих прогонов (порядок с учётом FK; REST-delete политик у этих таблиц нет).
 sql(f"DELETE FROM public.pdd_section_read_progress WHERE section_id='{section}';"
     f"DELETE FROM public.pdd_course_publications WHERE section_id='{section}';"
@@ -152,4 +154,13 @@ print(f"ИТОГ: {len(passed)} PASS, {len(failed)} FAIL")
 if failed:
     print("Провалы:", *failed, sep="\n  - ")
     raise SystemExit(1)
+
+# Убираем за собой: тестовая секция не должна оставаться видимой в курсе.
+sql(f"DELETE FROM public.pdd_section_read_progress WHERE section_id='{section}';"
+    f"DELETE FROM public.pdd_course_publications WHERE section_id='{section}';"
+    f"DELETE FROM public.pdd_course_published_revisions WHERE section_id='{section}';"
+    f"DELETE FROM public.pdd_course_draft_revisions WHERE section_id='{section}';"
+    f"DELETE FROM public.pdd_course_drafts WHERE section_id='{section}';"
+    f"DELETE FROM public.pdd_course_catalog WHERE section_id='{section}';")
+print("Cleanup: тестовая секция удалена")
 PY

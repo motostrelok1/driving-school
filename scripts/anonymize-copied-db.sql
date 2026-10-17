@@ -1,7 +1,22 @@
 -- Анонимизация тестовой БД driving-school-supabase-test (одна транзакция).
 -- Затрагивает только auth/public/storage схемы тестового контейнера.
 -- Демо- и синтетические аккаунты (*.example.invalid, *.test.local) не трогаем.
+--
+-- ЗАЩИТА ОТ ЗАПУСКА НЕ НА ТОЙ БД: скрипт отказывается работать, если в auth.users
+-- нет sentinel-аккаунта demo-admin@test.local — он существует только в тестовой БД.
+-- Если запускается против production-копии без демо-аккаунтов — ABORT до любых изменений.
+--
+-- ВАЖНО: скрипт чистит только СТРОКИ БД. Физические файлы Storage (бакет avatars и
+-- любые другие бакеты с персональными файлами) остаются на диске контейнера Storage
+-- и удаляются отдельно: docker exec <storage> rm -rf /var/lib/storage/avatars/*
 BEGIN;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'demo-admin@test.local') THEN
+    RAISE EXCEPTION 'ANONYMIZE REFUSED: demo-admin@test.local not found — this does not look like the test database';
+  END IF;
+END $$;
 
 -- Пользователи, подлежащие анонимизации (реальные идентификаторы входа)
 CREATE TEMP TABLE anon_users AS
