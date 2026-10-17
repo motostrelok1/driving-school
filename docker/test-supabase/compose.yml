@@ -138,12 +138,48 @@ services:
       DISABLE_HEALTHCHECK_LOGGING: "true"
     networks: [test_internal]
     security_opt: [no-new-privileges:true]
+  # Edge Functions: stock main-роутер + функции автошколы. Авторизация —
+  # внутри каждой функции (production тоже FUNCTIONS_VERIFY_JWT=false).
+  # SUPABASE_URL ведёт на gateway: функции ходят в auth/rest/storage стека.
+  functions:
+    image: supabase/edge-runtime:v1.76.2
+    restart: "no"
+    depends_on: [db, rest]
+    environment:
+      JWT_SECRET: ${TEST_JWT_SECRET:?required}
+      SUPABASE_JWKS: '{"keys":[]}'
+      SUPABASE_URL: http://gateway:8080
+      SUPABASE_PUBLIC_URL: ${TEST_SUPABASE_PUBLIC_URL:-http://127.0.0.1:28000}
+      SUPABASE_ANON_KEY: ${TEST_ANON_KEY:?required}
+      SUPABASE_SERVICE_ROLE_KEY: ${TEST_SERVICE_ROLE_KEY:?required}
+      # Новые opaque-режимы @supabase/server: без них любой запрос 500.
+      SUPABASE_PUBLISHABLE_KEYS: "{\"default\":\"${TEST_ANON_KEY}\"}"
+      SUPABASE_SECRET_KEYS: "{\"default\":\"${TEST_SERVICE_ROLE_KEY}\"}"
+      SUPABASE_DB_URL: postgres://postgres:${TEST_POSTGRES_PASSWORD:?required}@db:5432/postgres
+      VERIFY_JWT: "false"
+      FUNCTIONS_CORS_ORIGIN: ${TEST_FUNCTIONS_CORS_ORIGIN:-https://test.dvizh-school.ru}
+      # OneSignal в тесте — заглушки: реальных пушей не отправляется,
+      # механика функций проверяется по отказу внешнего API.
+      ONESIGNAL_APP_ID: ${TEST_ONESIGNAL_APP_ID:-test-app-id}
+      ONESIGNAL_REST_API_KEY: ${TEST_ONESIGNAL_REST_API_KEY:-test-rest-key}
+      DRIVING_REMINDER_SECRET: ${TEST_DRIVING_REMINDER_SECRET:?required}
+      ONESIGNAL_EVENT_STREAM_SECRET: ${TEST_ONESIGNAL_EVENT_STREAM_SECRET:?required}
+    volumes:
+      - ./functions:/home/deno/functions:ro
+      - test_deno_cache:/root/.cache/deno
+    # Исключение из изоляции: edge-runtime при каждом старте ревалидирует
+    # JSR-манифесты по сети (deno-кэш не решает), production-стек тоже
+    # имеет интернет. Секреты тестовые, OneSignal — заглушки (реальных
+    # пушей нет), сервисы данных остаются в test_internal.
+    networks: [test_internal, test_edge]
+    security_opt: [no-new-privileges:true]
+    command: ["start", "--main-service", "/home/deno/functions/main"]
   # Единая точка входа: /auth/v1 → GoTrue, /rest/v1 → PostgREST,
   # /storage/v1 → Storage API, /realtime/v1 → Realtime (WebSocket upgrade).
   gateway:
     image: nginx:alpine
     restart: "no"
-    depends_on: [auth, rest, storage, realtime]
+    depends_on: [auth, rest, storage, realtime, functions]
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [test_internal]
@@ -163,3 +199,4 @@ networks:
 volumes:
   test_postgres_data:
   test_storage_data:
+  test_deno_cache:
