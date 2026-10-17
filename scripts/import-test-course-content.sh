@@ -91,6 +91,86 @@ SELECT setval(pg_get_serial_sequence('public.pdd_course_published_revisions', 'i
 SQL
 rm -f /tmp/course-raw.sql /tmp/course-inserts.sql
 
+echo 'Stage 4b: media migration (self-contained storage, no production refs)'
+# Контент ссылается на медиа вида https://<project>.supabase.co/storage/v1/object/public/<bucket>/<name>.
+# Чтобы тестовое окружение не зависело от production: скачиваем публичные объекты и
+# переливаем в локальный Storage, затем переписываем URL в блоках на локальный gateway.
+# MEDIA_PUBLIC_BASE — публичный URL тестового стека (https://supabase-test.example.com).
+MEDIA_PUBLIC_BASE=${MEDIA_PUBLIC_BASE:-}
+MEDIA_UPLOAD_BASE=${MEDIA_UPLOAD_BASE:-http://127.0.0.1:28000}
+SRV_ENV=/opt/driving-school-supabase-test/.env
+python3 - "$DB" "$MEDIA_PUBLIC_BASE" "$MEDIA_UPLOAD_BASE" "$SRV_ENV" <<'PY'
+import json, re, subprocess, sys, tempfile, os, urllib.request
+
+db, public_base, upload_base, srv_env = sys.argv[1:5]
+
+def psql(q):
+    # Все запросы через stdin (единый режим, -c не используем:
+    # он требует команду следующим аргументом и ломает вложенные вызовы).
+    r = subprocess.run(["docker", "exec", "-i", db, "psql", "-X", "-At", "-q",
+                        "-v", "ON_ERROR_STOP=1",
+                        "-U", "supabase_admin", "-d", "postgres"],
+                       input=q, text=True, capture_output=True)
+    if r.returncode:
+        raise SystemExit("SQL failed: " + r.stderr.strip() + " | " + q[:120])
+    return r.stdout
+
+pat = re.compile(r'https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/[^"\\\s]+')
+refs = set()
+for t in ("pdd_course_drafts", "pdd_course_draft_revisions", "pdd_course_published_revisions"):
+    out = psql(f"SELECT DISTINCT blocks::text FROM public.{t};")
+    for m in pat.findall(out):
+        refs.add(m)
+
+if not refs:
+    print("No external media references — nothing to migrate")
+    raise SystemExit(0)
+
+if not public_base:
+    raise SystemExit("BLOCKED: external media refs exist but MEDIA_PUBLIC_BASE is unset")
+
+srv = None
+with open(srv_env) as f:
+    for line in f:
+        if line.startswith("TEST_SERVICE_ROLE_KEY="):
+            srv = line.strip().split("=", 1)[1]
+if not srv:
+    raise SystemExit("BLOCKED: TEST_SERVICE_ROLE_KEY not found in env file")
+
+migrated = 0
+for url in sorted(refs):
+    m = re.match(r'https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/([^/]+)/(.+)$', url)
+    bucket, name = m.group(1), m.group(2)
+    psql("INSERT INTO storage.buckets (id, name, public) VALUES "
+         f"('{bucket}', '{bucket}', true) ON CONFLICT (id) DO NOTHING;")
+    with tempfile.NamedTemporaryFile(delete=False) as tf:
+        tmp = tf.name
+    ctype = "application/octet-stream"
+    try:
+        with urllib.request.urlopen(url) as resp:
+            ctype = resp.headers.get_content_type() or ctype
+            with open(tmp, "wb") as f:
+                f.write(resp.read())
+    except Exception as e:
+        print(f"WARN: download failed {url}: {e} — left as-is")
+        continue
+    up = subprocess.run(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "-X", "POST",
+                         f"{upload_base}/storage/v1/object/{bucket}/{name}",
+                         "-H", f"apikey: {srv}", "-H", f"Authorization: Bearer {srv}",
+                         "-H", "x-upsert: true", "-H", f"Content-Type: {ctype}",
+                         "--data-binary", f"@{tmp}"], text=True, capture_output=True)
+    os.unlink(tmp)
+    if up.stdout not in ("200", "201"):
+        raise SystemExit(f"BLOCKED: upload {bucket}/{name} -> {up.stdout} {up.stderr}")
+    new_url = f"{public_base}/storage/v1/object/public/{bucket}/{name}"
+    for t in ("pdd_course_drafts", "pdd_course_draft_revisions", "pdd_course_published_revisions"):
+        psql(f"UPDATE public.{t} SET blocks = replace(blocks::text, '{url}', '{new_url}')::jsonb "
+             f"WHERE blocks::text LIKE '%{url}%';")
+    migrated += 1
+    print(f"Migrated {bucket}/{name} -> local storage")
+print(f"Media migration done: {migrated}/{len(refs)}")
+PY
+
 echo 'Stage 5: verification'
 sql <<'SQL'
 SELECT 'catalog: ' || count(*) FROM public.pdd_course_catalog;
@@ -100,5 +180,8 @@ SELECT 'published_revisions: ' || count(*) FROM public.pdd_course_published_revi
 SELECT 'publications: ' || count(*) FROM public.pdd_course_publications;
 SELECT 'read_progress untouched: ' || count(*) FROM public.pdd_section_read_progress;
 SELECT 'profiles untouched: ' || count(*) FROM public.profiles;
+SELECT 'external media refs (must be 0): ' || count(DISTINCT m[1]) FROM (
+  SELECT regexp_matches(blocks::text, 'https://[a-z0-9]+\.supabase\.co/', 'g') AS m
+  FROM public.pdd_course_published_revisions) s;
 SQL
 echo '=== COURSE CONTENT IMPORT DONE ==='
