@@ -82,6 +82,7 @@ export function StudentTheoryCoursePage() {
   const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null)
   const { user } = useAuth()
   const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>([])
+  const [loadedVideoUserId, setLoadedVideoUserId] = useState<string | null>(null)
   const watchedCount = courseVideos.filter(video => watchedVideoIds.includes(video.id)).length
   const readPddCount = publishedSections.filter(topic => readTopicIds.includes(topic.id)).length
 
@@ -89,11 +90,13 @@ export function StudentTheoryCoursePage() {
   // it may belong to another user on a shared browser.
   useEffect(() => {
     if (!user) {
+      setLoadedVideoUserId(null)
       setWatchedVideoIds([])
       return
     }
     let active = true
     const key = `watched-theory-videos:${user.id}`
+    setLoadedVideoUserId(null)
     setWatchedVideoIds([])
     void (async () => {
       const { data, error } = await supabase.from('theory_video_progress')
@@ -103,6 +106,7 @@ export function StudentTheoryCoursePage() {
       const merged = Array.from(new Set([...local, ...(data ?? []).map(row => row.video_id)]))
         .filter(id => courseVideos.some(video => video.id === id))
       setWatchedVideoIds(merged)
+      setLoadedVideoUserId(user.id)
       const remote = new Set((data ?? []).map(row => row.video_id))
       const missing = merged.filter(id => !remote.has(id))
       if (missing.length) {
@@ -117,12 +121,12 @@ export function StudentTheoryCoursePage() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || loadedVideoUserId !== user.id) return
     localStorage.setItem(`watched-theory-videos:${user.id}`, JSON.stringify(watchedVideoIds))
-  }, [user?.id, watchedVideoIds])
+  }, [user?.id, loadedVideoUserId, watchedVideoIds])
 
   function markVideoWatched(videoId: string) {
-    if (!user || !courseVideos.some(video => video.id === videoId)) return
+    if (!user || loadedVideoUserId !== user.id || !courseVideos.some(video => video.id === videoId)) return
     setWatchedVideoIds(current => current.includes(videoId) ? current : [...current, videoId])
     void supabase.from('theory_video_progress').upsert(
       { user_id: user.id, video_id: videoId },
