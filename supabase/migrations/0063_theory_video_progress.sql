@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS public.theory_video_progress (
 ALTER TABLE public.theory_video_progress ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.theory_video_progress FROM PUBLIC,anon,authenticated;
 GRANT SELECT,INSERT ON public.theory_video_progress TO authenticated;
+DROP POLICY IF EXISTS theory_video_own_read ON public.theory_video_progress;
+DROP POLICY IF EXISTS theory_video_own_insert ON public.theory_video_progress;
 CREATE POLICY theory_video_own_read ON public.theory_video_progress FOR SELECT TO authenticated USING (user_id=(SELECT auth.uid()));
 CREATE POLICY theory_video_own_insert ON public.theory_video_progress FOR INSERT TO authenticated WITH CHECK (user_id=(SELECT auth.uid()));
 CREATE OR REPLACE FUNCTION public.get_admin_student_theory_progress(target_student_id uuid)
@@ -33,5 +35,5 @@ BEGIN
  (SELECT count(*)::int FROM public.theory_video_progress v WHERE v.user_id=target_student_id),
  5::int;
 END $$;
-REVOKE ALL ON FUNCTION public.get_admin_student_theory_progress(uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.get_admin_student_theory_progress(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_admin_student_theory_progress(uuid) TO authenticated;
