@@ -75,12 +75,28 @@ const chA = subscribeChannel(A.jwt)
 await chA.joined
 check('подписка postgres_changes зарегистрирована', true)
 
-sql(`UPDATE public.profiles SET phone='+70000000001' WHERE id='${A.uid}';`)
-let ok = false
-for (let i = 0; i < 40 && !ok; i++) {
-  await wait(500)
-  ok = chA.events.some(d => d?.type === 'UPDATE' && d?.record?.id === A.uid && d.record.phone === '+70000000001')
+// Warm-up: phx_join ok ещё НЕ значит, что CDC-подписка активна на сервере.
+// События, случившиеся до активации, теряются безвозвратно (не отложены),
+// поэтому служебный UPDATE повторяем, пока его событие не придёт.
+const waitEvent = async (pred, timeoutMs) => {
+  const until = Date.now() + timeoutMs
+  while (Date.now() < until) {
+    if (chA.events.some(pred)) return true
+    await wait(500)
+  }
+  return chA.events.some(pred)
 }
+let warm = false
+for (let i = 0; i < 10 && !warm; i++) {
+  const marker = `+7000000001${i}`
+  sql(`UPDATE public.profiles SET phone='${marker}' WHERE id='${A.uid}';`)
+  warm = await waitEvent(d => d?.type === 'UPDATE' && d?.record?.id === A.uid && d.record.phone === marker, 3000)
+}
+check('CDC-пайплайн жив (warm-up событие доставлено)', warm, JSON.stringify(chA.events).slice(0, 200))
+chA.events = []
+
+sql(`UPDATE public.profiles SET phone='+70000000001' WHERE id='${A.uid}';`)
+const ok = await waitEvent(d => d?.type === 'UPDATE' && d?.record?.id === A.uid && d.record.phone === '+70000000001', 20000)
 check('UPDATE своей строки доставлен с полными данными', ok, JSON.stringify(chA.events).slice(0, 200))
 
 // === Сценарий 2: RLS-изоляция — чужая строка не приходит ===
