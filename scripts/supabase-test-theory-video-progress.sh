@@ -47,7 +47,14 @@ out,code=req('/rest/v1/theory_video_progress',{'user_id':ua,'video_id':video},b)
 assert code>=400,('cross-user write',code,out)
 out,code=req('/rest/v1/rpc/get_admin_student_theory_progress',{'target_student_id':ua},b)
 assert code in (401,403,400),('student admin rpc',code,out)
+# Elevate only this newly generated throwaway account in the isolated TEST database.
+admin,admin_id=student('admin')
+sql(f"BEGIN; SET LOCAL session_replication_role='replica'; UPDATE public.profiles SET role='admin' WHERE id='{admin_id}'; COMMIT;")
+out,code=req('/rest/v1/rpc/get_admin_student_theory_progress',{'target_student_id':ua},admin)
+assert code==200 and isinstance(out,list) and len(out)==1,('admin aggregate',code,out)
+aggregate=out[0]
+assert aggregate['watched_videos']>=1 and aggregate['total_videos']==5,('admin progress values',aggregate)
 out,code=req('/rest/v1/theory_video_progress?select=*',None,None,'GET')
 assert code in (200,401,403) and (code!=200 or not out),('anonymous reads',code,out)
-print('PASS TEST 0063: own insert, isolated read/write, invalid ID, admin RPC, anonymous read')
+print('PASS TEST 0063: own insert, isolated read/write, invalid ID, admin RPC denied for student, aggregate for admin, anonymous read')
 PY
