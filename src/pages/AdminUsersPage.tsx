@@ -83,6 +83,31 @@ function getAdminAuthErrorMessage(message: string) {
   return message
 }
 
+function AdminStudentTheoryProgress({ studentId }: { studentId: string }) {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ['admin-student-theory-progress', studentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_admin_student_theory_progress', { target_student_id: studentId })
+      if (error) throw error
+      return data?.[0] ?? null
+    },
+    staleTime: 30_000,
+  })
+  if (isPending) return <p className="mt-1 text-sm text-slate-500">Загрузка прогресса…</p>
+  if (isError || !data) return <p className="mt-1 text-sm text-amber-700">Прогресс теории пока недоступен</p>
+  const total = data.published_sections + data.total_videos
+  const done = data.read_sections + data.watched_videos
+  const percent = total > 0 ? Math.min(100, Math.round(done / total * 100)) : 0
+  return <>
+    <p className="mt-1 text-sm text-slate-600">{done} из {total} тем · {percent}%</p>
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar"
+      aria-label="Прогресс теории" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${percent}%` }} />
+    </div>
+    <p className="mt-1 text-xs text-slate-500">ПДД: {data.read_sections}/{data.published_sections} · видео: {data.watched_videos}/{data.total_videos}</p>
+  </>
+}
+
 type DrivingSummary = { completed: number; booked: number; total: number; courseName: string }
 function AdminStudentDrivingProgress({ studentId }: { studentId: string }) {
   const { data, isPending, isError } = useQuery({
@@ -955,8 +980,7 @@ export function AdminUsersPage() {
                           <div className="grid gap-3 border-b border-slate-100 pb-4 sm:grid-cols-2">
                             <div>
                               <p className="text-xs font-medium text-slate-500">Теория</p>
-                              <p className="mt-1 text-sm text-slate-500">Прогресс — подключение на следующем этапе</p>
-                              <div className="mt-2 h-1.5 rounded-full bg-slate-100" role="img" aria-label="Прогресс теории пока недоступен" />
+                              <AdminStudentTheoryProgress studentId={user.id} />
                             </div>
                             <div>
                               <p className="text-xs font-medium text-slate-500">Вождение</p>
