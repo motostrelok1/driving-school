@@ -9,6 +9,7 @@ import { pddTopics } from '@/pages/pddTopics'
 import { usePublishedPdd, PddPublishedList, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
 import { cn } from '@/utils/cn'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 function getTicketImageSrc(image: string) {
   if (image.startsWith('/') || image.startsWith('http')) {
@@ -79,52 +80,56 @@ export function StudentTheoryCoursePage() {
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(false)
   const [isPddOpen, setIsPddOpen] = useState(false)
   const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null)
-  const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>(() => {
-    try {
-      return getStoredStringList('watched-theory-videos')
-    } catch {
-      return []
+  const { user } = useAuth()
+  const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>([])
+  const watchedCount = courseVideos.filter(video => watchedVideoIds.includes(video.id)).length
+  const readPddCount = publishedSections.filter(topic => readTopicIds.includes(topic.id)).length
+
+  // The former unscoped 'watched-theory-videos' key is not automatically imported:
+  // it may belong to another user on a shared browser.
+  useEffect(() => {
+    if (!user) {
+      setWatchedVideoIds([])
+      return
     }
-  })
-  const watchedCount = courseVideos.filter((video) => watchedVideoIds.includes(video.id)).length
-  const readPddCount = publishedSections.filter((topic) => readTopicIds.includes(topic.id)).length
-
-  useEffect(() => {
-    localStorage.setItem('watched-theory-videos', JSON.stringify(watchedVideoIds))
-  }, [watchedVideoIds])
-
-
-  useEffect(() => {
-    let alive = true
+    let active = true
+    const key = `watched-theory-videos:${user.id}`
+    setWatchedVideoIds([])
     void (async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
       const { data, error } = await supabase.from('theory_video_progress')
         .select('video_id').eq('user_id', user.id)
-      if (!alive || error) return
-      const local = getStoredStringList('watched-theory-videos')
+      if (!active || error) return
+      const local = getStoredStringList(key)
       const merged = Array.from(new Set([...local, ...(data ?? []).map(row => row.video_id)]))
         .filter(id => courseVideos.some(video => video.id === id))
-      if (alive) setWatchedVideoIds(merged)
-      const missing = merged.filter(id => !(data ?? []).some(row => row.video_id === id))
+      setWatchedVideoIds(merged)
+      const remote = new Set((data ?? []).map(row => row.video_id))
+      const missing = merged.filter(id => !remote.has(id))
       if (missing.length) {
         const { error: uploadError } = await supabase.from('theory_video_progress').upsert(
-          missing.map(video_id => ({ user_id: user.id, video_id })), { onConflict: 'user_id,video_id', ignoreDuplicates: true })
+          missing.map(video_id => ({ user_id: user.id, video_id })),
+          { onConflict: 'user_id,video_id', ignoreDuplicates: true }
+        )
         if (uploadError) console.warn('Не удалось синхронизировать видео', uploadError.message)
       }
     })()
-    return () => { alive = false }
-  }, [])
+    return () => { active = false }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user) return
+    localStorage.setItem(`watched-theory-videos:${user.id}`, JSON.stringify(watchedVideoIds))
+  }, [user?.id, watchedVideoIds])
 
   function markVideoWatched(videoId: string) {
+    if (!user || !courseVideos.some(video => video.id === videoId)) return
     setWatchedVideoIds(current => current.includes(videoId) ? current : [...current, videoId])
-    void (async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { error } = await supabase.from('theory_video_progress').upsert(
-        { user_id: user.id, video_id: videoId }, { onConflict: 'user_id,video_id', ignoreDuplicates: true })
+    void supabase.from('theory_video_progress').upsert(
+      { user_id: user.id, video_id: videoId },
+      { onConflict: 'user_id,video_id', ignoreDuplicates: true }
+    ).then(({ error }) => {
       if (error) console.warn('Прогресс видео сохранён локально, синхронизация пока недоступна', error.message)
-    })()
+    })
   }
 
   return (
