@@ -1,0 +1,72 @@
+name: Self-hosted Supabase — миграции и функции
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - 'scripts/selfhosted-supabase-deploy.sh'
+      - '.github/workflows/selfhosted-supabase.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Проверить SQL и функции
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Проверить файлы и имена миграций
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/selfhosted-supabase-deploy.sh
+          python3 scripts/validate-supabase-migrations.py
+          test -f supabase/functions/send-driving-reminders/index.ts
+          find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -print
+
+  deploy:
+    name: Деплой на VDS (после baseline)
+    needs: validate
+    if: ${{ vars.SELFHOSTED_DB_DEPLOY_ENABLED == 'true' && vars.SELFHOSTED_DB_BASELINED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: supabase-production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Подготовить SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Доставить пакет миграций и функций
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          tar -czf supabase-deploy.tgz supabase/migrations supabase/functions
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes supabase-deploy.tgz "$DEPLOY_USER@$DEPLOY_HOST:supabase-deploy.tgz"
+      - name: Применить изменения на VDS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" 'sudo -n /usr/local/sbin/driving-school-supabase-deploy /home/$(whoami)/supabase-deploy.tgz'
