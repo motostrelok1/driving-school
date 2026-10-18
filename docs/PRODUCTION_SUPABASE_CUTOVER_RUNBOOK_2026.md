@@ -29,6 +29,16 @@
 
 **Предыдущее предложение о новом `driving-school-supabase-prod` отменено для текущего VDS.** Не создавать третью инсталляцию и не восстанавливать production в TEST.
 
+### Подтверждённый источник миграции (со слов владельца, 2026-10-18)
+
+- Действующее приложение `dvizh-school.ru` использует **Supabase Cloud project ref `dznjopipisdfrojlpxrz`** (dashboard: `https://supabase.com/dashboard/project/dznjopipisdfrojlpxrz/settings/infrastructure`).
+- SOURCE: `dznjopipisdfrojlpxrz.supabase.co` — адрес предполагается из project ref, **перед передачей данных сверить фактический Project URL в dashboard**; это не локальный `supabase.dvizh-school.ru`.
+- TARGET CANDIDATE: существующий Docker project `supabase` на VDS, API `https://supabase.dvizh-school.ru` → Nginx `127.0.0.1:8000`, DB container `supabase-db`. **Нельзя считать целевую БД пустой или готовой к перезаписи без проверки её данных, зависимостей и полной резервной копии**.
+- KEEP TEST: project `driving-school-supabase-test` / `test.dvizh-school.ru` / `supabase-test.dvizh-school.ru` → `127.0.0.1:28000`, TEST содержит анонимизированную копию и не является источником production.
+- Cloud source и текущий self-hosted target отличаются. Не считать наличие работающего Docker `supabase` завершённой миграцией. Требуется проверка database counts / Auth identity / Storage file parity, миграция секретов и проверка frontend bundle.
+
+**Первый практический gate:** read-only inventory `supabase-db` и cloud project `dznjopipisdfrojlpxrz`, выявить владельца объектов и возможные несвязанные сервисы; никаких TRUNCATE/RESTORE на VDS без полного, проверенного бэкапа текущего target и отдельного подтверждения.
+
 ## 0. Неизменные правила
 
 - Производственный сайт `dvizh-school.ru` и текущий backend продолжат работать. `edu.dvizh-school.ru`, `lms.dvizh-school.ru` и другие приложения вне зоны работ.
