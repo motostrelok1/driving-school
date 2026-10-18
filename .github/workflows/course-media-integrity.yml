@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Verify manifest hashes
-        run: cd course-media && sha256sum -c sha256sums.txt
+        run: cd course-media/img && sha256sum -c ../sha256sums.txt
       - name: Install and verify assets in throwaway output
         run: |
           mkdir -p "$RUNNER_TEMP/pwa-dist"
