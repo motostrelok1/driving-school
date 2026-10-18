@@ -17,7 +17,7 @@
 ```bash
 npm ci && npm run build
 python3 scripts/install-course-media.py --target dist
-cd course-media && sha256sum -c sha256sums.txt
+cd course-media/img && sha256sum -c ../sha256sums.txt
 ```
 
 **Важно:** `dist` в примере должен быть заведомо временной сборкой, а не действующим production web root. Не запускать команды на существующем production VDS без отдельного разрешения.
