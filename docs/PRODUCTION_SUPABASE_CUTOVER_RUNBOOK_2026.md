@@ -1,3 +1,52 @@
+# АКТУАЛЬНАЯ КАРТА ИНФРАСТРУКТУРЫ И ПЕРЕДАЧА В НОВЫЙ ЧАТ — 18.10.2026
+
+**Читать этот раздел ПЕРВЫМ.** Это подтверждённое состояние на основе вывода команд владельца и репозитория. Запланированные действия ниже не равны выполненным. Канонический PR: https://github.com/motostrelok1/driving-school/pull/208 (ветка `plan/production-selfhosted-cutover-2026`).
+
+## Что есть и где расположено
+
+| Компонент | Местонахождение / идентификатор | Статус |
+|---|---|---|
+| Рабочее PWA автошколы | `https://dvizh-school.ru`; Nginx `root /var/www/driving-school/dist` на VDS | Production; **подключено к Supabase Cloud**, подтверждено владельцем |
+| ИСХОДНАЯ рабочая база | Supabase Cloud project `dznjopipisdfrojlpxrz`; dashboard `https://supabase.com/dashboard/project/dznjopipisdfrojlpxrz/settings/infrastructure` | Реальные рабочие пользователи/теория; **это источник миграции**, облачный URL/набор таблиц ещё необходимо проверить |
+| Собственный рабочий Supabase (TARGET) | VDS `135.106.194.118`; Docker Compose project `supabase`; API `https://supabase.dvizh-school.ru` → Nginx `127.0.0.1:8000`; БД `supabase-db`, database `postgres`, user `supabase_admin` | Запущен, но прикладные данные не перенесены: `auth.users=0`, `auth.identities=0`, `storage.buckets=0`, `storage.objects=0`, `public.tables=0` |
+| Контейнеры TARGET | `supabase-envoy`, `supabase-auth`, `supabase-rest`, `supabase-storage`, `realtime-dev.supabase-realtime`, `supabase-edge-functions`, `supabase-db` | Все 7 запущены и healthy на момент `docker ps` |
+| Тестовое PWA | `https://test.dvizh-school.ru`; файлы `/var/www/driving-school-test/dist` | Работает с собственным TEST (это подтверждено в собранном JS) |
+| Собственный Supabase TEST | `https://supabase-test.dvizh-school.ru` → Nginx `127.0.0.1:28000`; Docker project `driving-school-supabase-test`, directory `/opt/driving-school-supabase-test`, DB `driving-school-supabase-test-db-1` | Анонимизированная копия; **не трогать и не использовать как источник production** |
+| Исходники приложения | GitHub `https://github.com/motostrelok1/driving-school` | План миграции — PR #208 |
+| Проект универсального Lite/Kit | GitHub `https://github.com/motostrelok1/supabase-lite` | Отдельная задача; миграцию не блокирует |
+| Прочие сайты VDS | `edu.dvizh-school.ru`, `lms.dvizh-school.ru` | Вне области миграции; не менять |
+| Лабораторные контейнеры | `clean-supabase-schema-lab-v1`, `cloud-full-restore-rehearsal-v1`, `cloud-restore-smoke-v1`, `supabase-restore-db` | Существуют, часть unhealthy; не удалять без проверки назначения и томов |
+
+**Состояние VDS (preflight 18.10):** 2 CPU, RAM 3.8 GiB total / 2.2 GiB available, диск 50 GiB / 30 GiB free, Docker 29.9.1 / Compose v5.6.0, Ubuntu kernel 6.8.0-142; слушают 22,53,80,443,3001,5432,8000,18025,18080,18100,19999,28000. Третий Supabase не нужен и **не должен создаваться** без нового явного решения.
+
+**HTTP проверка:** `https://supabase-test.dvizh-school.ru/auth/v1/health` → HTTP 200; `https://supabase.dvizh-school.ru/auth/v1/health` → HTTP 401 (gateway может требовать API key; не равняется отказу сервиса). Nginx подтвердил маршруты 28000 и 8000. Поиск URL `supabase.dvizh-school.ru` в production JS ничего не обнаружил, т.к. production использует облачный проект — заявлено владельцем. API URL cloud не подменять предположением.
+
+**TEST приёмка по предыдущим работам:** Auth/REST/RLS/Storage/Edge/Realtime работали; UI жизненный цикл вождения 26/26 PASS; теория 32 раздела, 49 публикаций, 1521 блок, 383 PNG, backup+restore пройдены. Результаты относятся к TEST, **не** к настоящей целевой production-БД.
+
+## Точный объём переноса — подтверждён владельцем неоднократно
+
+**ТОЛЬКО:**
+1. `auth` users и identities, необходимые профили/роли/связи, сохранение UUID и корректной авторизации;
+2. **весь раздел «Теория»**: учебные разделы, блоки, каталог, черновики, опубликованные ревизии, медиа, тесты, экзамены, вопросы, результаты, история попыток, прогресс учеников (при наличии в cloud), и минимальные необходимые справочники / RLS / RPC / функции.
+
+**НЕ ПЕРЕНОСИТЬ:** сообщения/чаты, записи и расписания вождения, уведомления и их историю, платежи, остальные документы и операционные данные. Не предлагать снова полный перенос. Код механизмов чатов/вождения может остаться в PWA, но старая история не переносится; будущие email/push потребуют настройки для новых событий, если включаются.
+
+## Состояние работ и следующий конкретный шаг
+
+**Сделано:** развернуты два собственных стека, тестовый принят; прочитаны маршруты Nginx, контейнеры, вместимость VDS и счетчики пустого TARGET; создан PR #208 с документом плана и read-only SQL inventory. **НЕ сделано:** экспорт актуальных cloud users/теории, schema compatibility и source table inventory, бэкап target, восстановление пользователей/теории, перенос бинарных медиа, SMTP/OneSignal production-конфигурация, переключение рабочего PWA. До GO cloud остаётся действующим.
+
+**В новом чате начинать с P0:** собрать read-only инвентаризацию `public` и `storage` в cloud project `dznjopipisdfrojlpxrz` с названиями таблиц теории и зависимостями FK (без PII), сверить repo migrations; проверить, что `supabase-db` не обслуживает другую систему; сохранить его предварительный backup и проверить restore. Затем оформить **строго выборочный** безопасный export + import users/теории в существующий `supabase-db` без потери UUID и без остальных данных. Получение команд/доступа к cloud — отдельная задача. Никаких секретов и дампов PII в GitHub/чат. Перед cutover проверить Auth, теорию, файлы и откат.
+
+## PR рядом (не мешать с миграцией)
+- #208 — этот план, открыт.
+- #205 — актуализация общей документации, открыт.
+- #185 — draft Auth restore audit, открыт.
+- #180 — server-side progress theory / SQL 0063, открыт, **не сливать до миграционных испытаний**.
+- #169 — draft CI/CD production SQL+Edge, открыт, **не включать автоматический деплой**.
+- #207 — media installer, **слит**, 383 проверенных PNG; `scripts/install-course-media.py` и `course-media/manifest.json` в main.
+
+---
+
 # MIGRATION RUNBOOK — СОГЛАСОВАННЫЙ ОБЪЁМ (2026-10-18)
 
 > **Это уточнение владельца имеет приоритет над ранее описанным полным переносом.** Ниже исторические разделы о переносе занятий, платежей, сообщений и документов **ОТМЕНЕНЫ**. Их не исполнять. Переносить только пользователей и **весь раздел «Теория»**, а всё остальное оставить в облачной системе как источник до cutover без импорта в VDS.
