@@ -26,7 +26,7 @@
 Проверка целостности после любой модификации:
 
 ```bash
-cd course-media && sha256sum -c sha256sums.txt   # ожидается "383 OK"
+cd course-media/img && sha256sum -c ../sha256sums.txt   # ожидается "383 OK"
 ```
 
 ## Использование установщиками
