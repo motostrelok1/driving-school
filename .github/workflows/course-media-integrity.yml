@@ -1,0 +1,52 @@
+name: Course media integrity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'course-media/**'
+      - 'scripts/install-course-media.py'
+      - '.github/workflows/course-media-integrity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'course-media/**'
+      - 'scripts/install-course-media.py'
+      - '.github/workflows/course-media-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Проверка изображений курса
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify manifest hashes
+        run: cd course-media && sha256sum -c sha256sums.txt
+      - name: Install and verify assets in throwaway output
+        run: |
+          mkdir -p "$RUNNER_TEMP/pwa-dist"
+          python3 scripts/install-course-media.py --target "$RUNNER_TEMP/pwa-dist"
+          python3 scripts/install-course-media.py --target "$RUNNER_TEMP/pwa-dist"
+          test "$(find "$RUNNER_TEMP/pwa-dist/course-import/img" -name '*.png' -type f | wc -l)" = 383
+      - name: Reject corrupted source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, tempfile, subprocess, shutil
+          manifest = json.loads(Path('course-media/manifest.json').read_text())
+          with tempfile.TemporaryDirectory() as d:
+              src = Path(d) / 'package'
+              (src / 'img').mkdir(parents=True)
+              shutil.copy('course-media/manifest.json', src / 'manifest.json')
+              name = manifest['files'][0]['file']
+              (src / 'img' / name).write_bytes(b'bad-content')
+              target = Path(d) / 'dist'
+              target.mkdir()
+              r = subprocess.run(['python3', 'scripts/install-course-media.py', '--package', str(src), '--target', str(target)], capture_output=True)
+              assert r.returncode != 0
+              assert not (target / 'course-import').exists()
+          PY
