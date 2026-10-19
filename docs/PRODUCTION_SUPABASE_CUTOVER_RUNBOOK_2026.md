@@ -25,6 +25,14 @@
 - План будущего обновления: после проверки security gates и отказа от публичных test-origin осторожно переключить только `proxy_pass` production API vhost с `127.0.0.1:8000` на существующий `127.0.0.1:28000`, сохранив TLS, WebSocket и остальные заголовки; предусмотреть backup, `nginx -t`, health, rollback. Учитывать Host, Auth SITE_URL/redirect allowlist, CORS, JWT/anon key, frontend runtime URL и возможность попадания реальных данных в тестовый frontend. Проверить отсутствие других внешних обходных маршрутов и доступ из независимого клиента.
 - **STOP:** не импортировать PII, не переключать frontend `dvizh-school.ru`, не открывать production запись в target до закрытия gates, подтверждения доступа к Cloud export, проверок Auth/теории и отдельного GO. Cloud сейчас действующий production.
 
+## Проверка восстановления пароля TEST — PASS, 19.10.2026
+
+По подтверждению владельца полный тест выполнен: запрос восстановления из приложения → отправка GoTrue через SMTP Яндекса → получение письма в Gmail → переход по ссылке → установка нового пароля → успешный вход с новым паролем. Health Auth = 200. Этот результат относится только к TEST, а не к миграции Cloud.
+
+Проблемы, исправленные во время теста: у GoTrue не было исходящего DNS в `test_internal`; сервис `auth` подключён также к `test_edge`. SMTP логин содержал символы Unicode и был исправлен, прямой SMTP login PASS. Для корректной ссылки восстановления настроены `API_EXTERNAL_URL` с `/auth/v1` и `GOTRUE_MAILER_URLPATHS_RECOVERY=/auth/v1/verify`. SMTP-секреты хранятся только локально в защищённом `auth-smtp.env`, не коммитить. Две ранее показанные recovery-ссылки содержали токены: считать их скомпрометированными и не переиспользовать.
+
+**Следующие ворота:** убрать временный allowlist телефона из тестовых frontend/API и вернуть полный 403 извне; проверить другие пути обхода. Отдельно настроить русские email templates и окончательные production Auth SITE_URL/redirect, подтвердить политику подтверждения email, пригодность личного SMTP Яндекса для production, backup, RLS, Cloud export. Никаких реальных персональных данных в TEST до прохождения security gate. На основной сайт Cloud пока не переключались.
+
 ## Последовательные обязательные ворота
 
 1. **P0 — инвентаризация без PII.** Доступ к Cloud source и read-only counts/schema/FK/Storage/identity providers; аудит текущих test/prod frontend URL, env сборки, прокси, Edge, SMTP, push, cron, OneSignal, service worker, auth callback redirect. Проверить состояние трёх оставшихся тестовых аккаунтов и доступность входа. Обновить карту API endpoint. До получения Cloud доступа STOP для export.
