@@ -13,6 +13,18 @@
 
 Переносить **только** настоящие Auth users + identities + необходимые profiles/roles, и **всю Теорию**: контент и версии, публикации, черновики, вопросники, промежуточные тестирования/экзамены, результаты попыток, прогресс, медиа/Storage, согласованные schema/RLS/RPC/Edge-зависимости. **Не импортировать** старые занятия/брони/слоты, чаты/сообщения, платежи, документы не относящиеся к теории, историю уведомлений. Код будущих функций может сохраняться, но история пуста; UX таких разделов требует согласования.
 
+## P1 — результаты настройки Nginx (19.10.2026)
+
+**Закрытие TEST выполнено по выводу команд владельца, внешний security-аудит ещё не завершён.**
+
+- Резервные копии `test.dvizh-school.ru` и `supabase-test.dvizh-school.ru` сохранены в `/root/nginx-before-cutover/`.
+- В HTTPS server-блоках обоих тестовых доменов в `/etc/nginx/sites-available/` внесено `deny all;`; `nginx -t` PASS, Nginx reload успешен.
+- HTTP-проверка с VDS: `https://test.dvizh-school.ru/` → **403**; `https://supabase-test.dvizh-school.ru/auth/v1/health` → **403**; действующий `https://dvizh-school.ru/` → **200**.
+- Docker published ports TEST: gateway `127.0.0.1:28000->8080`, auth-local `127.0.0.1:19999->9999`, rest-local `127.0.0.1:18080->3000`, mailpit-local `127.0.0.1:18025->8025`; остальное показано только container ports. Публичные Nginx-маршруты test закрыты.
+- **Вновь проверен полный production API vhost:** `/etc/nginx/sites-enabled/supabase.dvizh-school.ru` HTTPS-прокси всё ещё указывает на **`http://127.0.0.1:8000`**; `server_name supabase.dvizh-school.ru`, TLS Let's Encrypt для данного имени, `client_max_body_size 50m`, WebSocket upgrade, `proxy_read_timeout 3600s`. HTTP-сервер на порту 80 перенаправляет на HTTPS. **Никаких изменений этому vhost пока не делали**.
+- План будущего обновления: после проверки security gates и отказа от публичных test-origin осторожно переключить только `proxy_pass` production API vhost с `127.0.0.1:8000` на существующий `127.0.0.1:28000`, сохранив TLS, WebSocket и остальные заголовки; предусмотреть backup, `nginx -t`, health, rollback. Учитывать Host, Auth SITE_URL/redirect allowlist, CORS, JWT/anon key, frontend runtime URL и возможность попадания реальных данных в тестовый frontend. Проверить отсутствие других внешних обходных маршрутов и доступ из независимого клиента.
+- **STOP:** не импортировать PII, не переключать frontend `dvizh-school.ru`, не открывать production запись в target до закрытия gates, подтверждения доступа к Cloud export, проверок Auth/теории и отдельного GO. Cloud сейчас действующий production.
+
 ## Последовательные обязательные ворота
 
 1. **P0 — инвентаризация без PII.** Доступ к Cloud source и read-only counts/schema/FK/Storage/identity providers; аудит текущих test/prod frontend URL, env сборки, прокси, Edge, SMTP, push, cron, OneSignal, service worker, auth callback redirect. Проверить состояние трёх оставшихся тестовых аккаунтов и доступность входа. Обновить карту API endpoint. До получения Cloud доступа STOP для export.
