@@ -22,11 +22,11 @@
 
 ## Добавленный smoke-скрипт
 
-После применения SQL 0063 в отдельной TEST-базе выполнить на VDS:
+**Внимание после P0.9:** прежний контейнер `driving-school-supabase-test-db-1` и `127.0.0.1:28000` используются production. Старую команду без параметров **не выполнять**. Скрипт теперь требует отдельную QA-only DB, локальный QA gateway и QA env, и отказывает для известных production идентификаторов. До развёртывания независимого QA стенда этот smoke = BLOCKED. После применения SQL 0063 в **новой изолированной QA-базе**:
 
 ```bash
 cd /var/www/driving-school
-bash scripts/supabase-test-theory-video-progress.sh
+TEST_DB_CONTAINER=<qa-only-db> TEST_API_URL=http://127.0.0.1:<qa-port> TEST_ENV_FILE=<qa-env-path> bash scripts/supabase-test-theory-video-progress.sh
 ```
 
 Скрипт отказывается стартовать без именованного тестового контейнера и TEST env, создаёт двух случайных тестовых учеников и через публичный тестовый gateway проверяет RLS. **Сам SQL не применяет** и production не меняет. Полную UI-проверку и admin RPC с токеном настоящего тестового admin следует дополнительно провести вручную.

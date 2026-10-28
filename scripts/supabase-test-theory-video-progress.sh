@@ -3,14 +3,24 @@
 set -Eeuo pipefail
 umask 077
 if (( $# )); then echo "No arguments" >&2; exit 2; fi
-DB=driving-school-supabase-test-db-1
+# The historic driving-school-supabase-test-db-1 and port 28000 now serve production.
+# Refuse both: no fixture writes are allowed against the production cutover stack.
+: "${TEST_DB_CONTAINER:?Set the name of an independently created QA-only PostgreSQL container}"
+: "${TEST_API_URL:?Set an isolated localhost QA-only gateway URL}"
+: "${TEST_ENV_FILE:?Set the path to QA-only env file}"
+DB="$TEST_DB_CONTAINER"
+if [[ "$DB" == driving-school-supabase-test-db-1 || "$TEST_API_URL" == *:28000* ]]; then
+  echo "REFUSED: current production container/gateway must never be used as QA" >&2; exit 2
+fi
+[[ "$TEST_API_URL" =~ ^http://127[.]0[.]0[.]1:[0-9]+$ ]] || { echo "QA gateway must be localhost HTTP" >&2; exit 2; }
 docker inspect "$DB" --format '{{.State.Running}}' 2>/dev/null | grep -qx true || { echo "TEST database not running" >&2; exit 1; }
-test -f /opt/driving-school-supabase-test/.env || { echo "Missing TEST stack sentinel" >&2; exit 1; }
+test -f "$TEST_ENV_FILE" || { echo "Missing isolated QA env" >&2; exit 1; }
+export TEST_DB_CONTAINER TEST_API_URL TEST_ENV_FILE
 python3 <<'PY'
-import json,secrets,subprocess,pathlib
-db='driving-school-supabase-test-db-1'
-env=dict(x.strip().split('=',1) for x in pathlib.Path('/opt/driving-school-supabase-test/.env').read_text().splitlines() if '=' in x and not x.startswith('#'))
-base='http://127.0.0.1:28000'
+import json,secrets,subprocess,pathlib,os
+db=os.environ['TEST_DB_CONTAINER']
+env=dict(x.strip().split('=',1) for x in pathlib.Path(os.environ['TEST_ENV_FILE']).read_text().splitlines() if '=' in x and not x.startswith('#'))
+base=os.environ['TEST_API_URL']
 anon=env['TEST_ANON_KEY']
 def sql(q):
     p=subprocess.run(['docker','exec',db,'psql','-X','-At','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d','postgres','-c',q],capture_output=True,text=True,check=True)
