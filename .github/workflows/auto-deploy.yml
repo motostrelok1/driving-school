@@ -52,4 +52,4 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" 'set -eu; umask 022; cd /var/www/driving-school; git pull --ff-only origin main; npm ci; npm run build; chmod -R a+rX /var/www/driving-school/dist; test -r /var/www/driving-school/dist/index.html'
+          ssh -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" 'bash /var/www/driving-school/scripts/deploy-production-atomic.sh'
