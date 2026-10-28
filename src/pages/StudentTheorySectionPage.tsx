@@ -8,6 +8,8 @@ import { useTickets } from '@/features/tickets/useTickets'
 import { pddTopics } from '@/pages/pddTopics'
 import { usePublishedPdd, PddPublishedList, usePddReadProgress } from '@/pages/StudentPublishedPddPage'
 import { cn } from '@/utils/cn'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 function getTicketImageSrc(image: string) {
   if (image.startsWith('/') || image.startsWith('http')) {
@@ -78,25 +80,60 @@ export function StudentTheoryCoursePage() {
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(false)
   const [isPddOpen, setIsPddOpen] = useState(false)
   const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null)
-  const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>(() => {
-    try {
-      return getStoredStringList('watched-theory-videos')
-    } catch {
-      return []
+  const { user } = useAuth()
+  const [watchedVideoIds, setWatchedVideoIds] = useState<string[]>([])
+  const [loadedVideoUserId, setLoadedVideoUserId] = useState<string | null>(null)
+  const watchedCount = courseVideos.filter(video => watchedVideoIds.includes(video.id)).length
+  const readPddCount = publishedSections.filter(topic => readTopicIds.includes(topic.id)).length
+
+  // The former unscoped 'watched-theory-videos' key is not automatically imported:
+  // it may belong to another user on a shared browser.
+  useEffect(() => {
+    if (!user) {
+      setLoadedVideoUserId(null)
+      setWatchedVideoIds([])
+      return
     }
-  })
-  const watchedCount = courseVideos.filter((video) => watchedVideoIds.includes(video.id)).length
-  const readPddCount = publishedSections.filter((topic) => readTopicIds.includes(topic.id)).length
+    let active = true
+    const key = `watched-theory-videos:${user.id}`
+    setLoadedVideoUserId(null)
+    setWatchedVideoIds([])
+    void (async () => {
+      const { data, error } = await supabase.from('theory_video_progress')
+        .select('video_id').eq('user_id', user.id)
+      if (!active || error) return
+      const local = getStoredStringList(key)
+      const merged = Array.from(new Set([...local, ...(data ?? []).map(row => row.video_id)]))
+        .filter(id => courseVideos.some(video => video.id === id))
+      setWatchedVideoIds(merged)
+      setLoadedVideoUserId(user.id)
+      const remote = new Set((data ?? []).map(row => row.video_id))
+      const missing = merged.filter(id => !remote.has(id))
+      if (missing.length) {
+        const { error: uploadError } = await supabase.from('theory_video_progress').upsert(
+          missing.map(video_id => ({ user_id: user.id, video_id })),
+          { onConflict: 'user_id,video_id', ignoreDuplicates: true }
+        )
+        if (uploadError) console.warn('Не удалось синхронизировать видео', uploadError.message)
+      }
+    })()
+    return () => { active = false }
+  }, [user?.id])
 
   useEffect(() => {
-    localStorage.setItem('watched-theory-videos', JSON.stringify(watchedVideoIds))
-  }, [watchedVideoIds])
-
+    if (!user || loadedVideoUserId !== user.id) return
+    localStorage.setItem(`watched-theory-videos:${user.id}`, JSON.stringify(watchedVideoIds))
+  }, [user?.id, loadedVideoUserId, watchedVideoIds])
 
   function markVideoWatched(videoId: string) {
-    setWatchedVideoIds((current) =>
-      current.includes(videoId) ? current : [...current, videoId]
-    )
+    if (!user || loadedVideoUserId !== user.id || !courseVideos.some(video => video.id === videoId)) return
+    setWatchedVideoIds(current => current.includes(videoId) ? current : [...current, videoId])
+    void supabase.from('theory_video_progress').upsert(
+      { user_id: user.id, video_id: videoId },
+      { onConflict: 'user_id,video_id', ignoreDuplicates: true }
+    ).then(({ error }) => {
+      if (error) console.warn('Прогресс видео сохранён локально, синхронизация пока недоступна', error.message)
+    })
   }
 
   return (
