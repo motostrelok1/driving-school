@@ -1,129 +1,52 @@
-# Автошкола PWA
+# Автошкола «Движ» — PWA
 
-Progressive Web Application для автошколы с личными кабинетами ученика, инструктора и администратора.
+Веб-приложение автошколы с ролями **администратор**, **инструктор**, **ученик**, курсом ПДД, расписанием, сообщениями и push-уведомлениями.
 
-## Возможности MVP
+## Production на 27 октября 2026
 
-- Регистрация и вход через email/пароль (Supabase Auth)
-- Роли: ученик, инструктор, администратор
-- Кабинет ученика: расписание занятий, история
-- Кабинет инструктора: расписание, список учеников, отметка занятий
-- Кабинет администратора: пользователи, группы, расписание
-- Push-уведомления через OneSignal
-- PWA: установка на телефон/десктоп, офлайн-кэширование
+- Сайт: https://dvizh-school.ru — Nginx, React/Vite PWA на VDS.
+- Собственный Supabase API: https://supabase.dvizh-school.ru; PostgreSQL, GoTrue Auth, PostgREST, Storage, Edge Functions.
+- Ранее использованный Supabase Cloud сохранён для возможного отката, **не является активным production**.
+- Первый перенос включал **пользователей и всю «Теорию»**, но не переносил старые чаты, занятия, платежи, документы и расписание.
+- Роли/профили: **33** (30 Cloud + 3 keeper). **32** опубликованных раздела ПДД, **49** ревизий, 4 изображения из собственного Storage.
+- Доступ к «Вождению» временно отключён через `driving_enabled=false`. Нельзя интерпретировать отсутствие старых записей как удаление данных Cloud.
+- OneSignal и сообщения проверены после миграции; статус «Прочитано» может иметь ошибочный цвет из-за старого delivery_status.
+- P0.10 — период наблюдения **24–72 ч** и первый автоматический бэкап после исправления ночного cron ещё требуют финального отчёта. Не объявлять окончательный PASS заранее.
 
-## Стек
+## Технологии
 
-- React 19 + TypeScript
-- Vite + `vite-plugin-pwa`
-- Tailwind CSS v4
-- React Router + TanStack Query
-- Supabase (Auth + PostgreSQL)
-- OneSignal Web Push
-- Vercel (хостинг)
+React 19, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query, Supabase (self-hosted) и OneSignal Web Push. GitHub Actions используются для сборки/доставки frontend; автоматический production deploy SQL/Edge в PR #169 **не включён**.
 
-## Быстрый старт
-
-### 1. Клонирование и установка зависимостей
+## Локальная разработка
 
 ```bash
-cd driving-school-pwa
 npm install
-```
-
-### 2. Настройка Supabase
-
-1. Создайте проект на [supabase.com](https://supabase.com).
-2. Перейдите в SQL Editor и выполните содержимое файла `supabase/migrations/0001_initial.sql`.
-3. Включите Email/Password провайдер в Authentication → Providers.
-4. Скопируйте URL и anon key из Project Settings → API.
-
-### 3. Настройка OneSignal (опционально)
-
-1. Создайте приложение на [onesignal.com](https://onesignal.com).
-2. Выберите платформу Web.
-3. Скопируйте App ID.
-
-### 4. Переменные окружения
-
-Скопируйте `.env.example` в `.env.local` и заполните:
-
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_ONESIGNAL_APP_ID=your-onesignal-app-id
-```
-
-### 5. Запуск локально
-
-```bash
+cp .env.example .env.local
 npm run dev
+npm run build
 ```
 
-Приложение будет доступно по адресу `http://localhost:5173`.
+Задайте `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_ONESIGNAL_APP_ID` для нужного окружения. Только публичные браузерные ключи допустимы в `VITE_*`; REST API Key OneSignal, service_role, пароли PostgreSQL и SSH-ключи никогда не помещать в frontend, PR или логи. Деплой production выполняется по проверенному runbook, не командой из локальной инструкции.
 
-## Создание первого администратора
+## Документация и план
 
-Через Supabase SQL Editor выполните:
+- [Текущий статус и исторический прогресс](PROGRESS.md)
+- [Roadmap](status/roadmap.md)
+- [Готовность модулей](status/modules.md)
+- [Актуальный backlog](tasks/backlog.md)
+- [Карта разделов и маршрутов](docs/project-map.md)
+- [Manual QA / чек-листы](docs/testing/manual/README.md) — отдельный PR по issue #210
+- [Инструкция администратора](docs/ADMINISTRATOR_USER_GUIDE.md)
+- [PR #208 — перенос / стабилизация](https://github.com/motostrelok1/driving-school/pull/208)
+- [PR #180 — видео-прогресс](https://github.com/motostrelok1/driving-school/pull/180)
+- [PR #169 — CI/CD SQL/Edge](https://github.com/motostrelok1/driving-school/pull/169)
 
-```sql
--- Сначала зарегистрируйтесь через приложение, затем выполните:
-UPDATE public.profiles
-SET role = 'admin'
-WHERE email = 'your-admin-email@example.com';
-```
+Статусы: **Готово и проверено**, **Реализовано, не проверено**, **В работе**, **Запланировано**. Наличие исходника или слитого PR не доказывает работу на production.
 
-Или включите подтверждение email и назначьте роль через SQL после регистрации.
+## Приоритеты
 
-## Деплой на Vercel
-
-1. Загрузите проект на GitHub.
-2. Импортируйте репозиторий в [Vercel](https://vercel.com).
-3. Добавьте переменные окружения (с префиксом `VITE_`).
-4. Нажмите Deploy.
-
-## Роли пользователей
-
-- `student` — ученик, видит своё расписание
-- `instructor` — инструктор, видит расписание и учеников
-- `admin` — администратор, управляет пользователями и расписанием
-
-## Структура проекта
-
-```
-src/
-  components/       # UI-компоненты и Layout
-  features/         # Фиче-модули (auth, schedule, admin, instructors)
-  hooks/            # Общие React-хуки
-  lib/              # Инициализация Supabase и OneSignal
-  pages/            # Страницы приложения
-  routes/           # Защищённые маршруты
-  types/            # TypeScript типы
-  utils/            # Утилиты
-```
-
-## Следующие шаги
-
-- Кабинет родителя
-- Кабинет директора с отчётами
-- CRM: воронка продаж, договоры, оплаты
-- Чат между учеником и инструктором
-
-## Официальное тестирование
-
-Назначение из карточки ученика, проверяемый банк вопросов и серверное прохождение в «Теория → Тестирование»: [инструкция установки и проверки](docs/THEORY_ASSESSMENTS.md). Нужны миграции `0034_theory_assessments.sql`, `0035_theory_assessment_execution.sql` и Edge Function `send-theory-assignment`. Исходные билеты импортируются как черновики: перед официальным тестом администратор проверяет и одобряет достаточное количество вопросов.
-
-## Запланировано: раскрытая карточка ученика
-
-- [Issue #172](https://github.com/motostrelok1/driving-school/issues/172) — редизайн списка учеников администратора: раскрытая карточка по утверждаемому макету, прогресс теории/вождения, здоровье/скоринг, проблемы и быстрые действия.
-- [Спецификация](docs/ADMIN_STUDENT_EXPANDED_CARD_SPEC.md). Статус: запланировано; реализация не начата.
-
-## Актуальный статус и план (16.10.2026)
-
-- [Сводка реализованного и запланированного по рабочему чату](docs/CHAT_ROADMAP_2026-10-16.md) — источник текущего статуса PR/Issues, приоритетов и ограничений.
-- [#172](https://github.com/motostrelok1/driving-school/issues/172): раскрытая админ-карточка **частично реализована** (PR #174/#178 merged); теория в PR #180 ожидает миграцию; скоринг впереди. Это уточняет более раннюю отметку «не начато» выше.
-- [#160](https://github.com/motostrelok1/driving-school/issues/160): недельная сетка готова, push по 3+ свободным слотам раз в час — впереди.
-- [#170](https://github.com/motostrelok1/driving-school/issues/170): аудит производительности запланирован; спецификация в [PR #171](https://github.com/motostrelok1/driving-school/pull/171), пока не merged.
-- [#167](https://github.com/motostrelok1/driving-school/issues/167): Tiptap описан, код редактора пока не внедрён.
-
-**Фактическое размещение PWA:** `dvizh-school.ru` на собственном сервере с GitHub Actions auto-deploy. Раздел «Деплой на Vercel» выше является устаревшей первоначальной инструкцией и не описывает текущий production. Отдельные сайты `edu.dvizh-school.ru` и `lms.dvizh-school.ru` этим репозиторием не затрагиваются.
+1. Завершить наблюдение P0.10 и проверку автоматического бэкапа.
+2. Ввести ручные регрессионные тест-кейсы по разделам (#210).
+3. Протестировать SQL 0063 и реализовать админский серверный прогресс (#180).
+4. Доделать карточку здоровья (#172), уведомления о слотах (#160), безопасность SQL/Edge CI (#169).
+5. Отдельно согласовать восстановление вождения и связанных данных на собственном Supabase.
